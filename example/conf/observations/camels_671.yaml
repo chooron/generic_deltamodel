@@ -2,9 +2,9 @@
 # Download: https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/camels/camels_data.zip
 
 name: camels_671
-data_path: ./your/path/to/camels_dataset
+data_path: E:\PaperCode\generic_deltamodel\data\camels_data
 
-gage_info: ./your/path/to/gage_id.npy
+gage_info: E:\PaperCode\generic_deltamodel\data\camels_data\gage_id.npy
 
 area_name: area_gages2
 

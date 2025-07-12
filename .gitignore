@@ -181,3 +181,7 @@ validation/
 
 # Model optimization config with RayTune
 !tune/
+
+.venv
+data
+paper

@@ -29,7 +29,7 @@ save_path: ./output
     # NOTE: The output path is relative to the current working directory. 
     #       If you want to save the output in a different directory, please specify the absolute path.
     #       * If a valid trained_model path is specified, save_path will be set to trained_model.
-trained_model: ./output/model/  # Pretrained dHBV 1.1p can be downloaded from: https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/models/dHBV_1_1p_trained.zip
+# trained_model: ./output/model/  # Pretrained dHBV 1.1p can be downloaded from: https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/models/dHBV_1_1p_trained.zip
 
 
 ## Training ------------------------------#
@@ -75,13 +75,13 @@ delta_model:
         # Unseen Extreme Events." ESS Open Archive (2025).
         # https://doi.org/10.22541/essoar.172304428.82707157/v2.
 
-        model: [Hbv_1_1p]
+        model: [hmets]
         nmul: 16
         warm_up: 365
         warm_up_states: False
         dy_drop: 0.0
         dynamic_params:
-            Hbv_1_1p: [parBETA, parK0, parBETAET]
+            hmets: [coef_runoff, coef_vadose2phreatic]
 
         routing: True
         use_log_norm: []
