@@ -183,14 +183,17 @@ class Trainer(BaseTrainer):
         path = self.config['model_path']
         for file in os.listdir(path):
             # Check for state checkpoint: looks like `train_state_epoch_XX.pt`.
-            if 'train_state' and (str(self.start_epoch-1) in file):
-                log.info("Loading trainer states --> Resuming Training from" /
-                         f" epoch {self.start_epoch}")
+            if ('train_state' in file) and (str(self.start_epoch-1) in file):
+                # log.info("Loading trainer states --> Resuming Training from" /
+                #          f" epoch {self.start_epoch}")
 
                 checkpoint = torch.load(os.path.join(path, file))
 
                 # Restore optimizer states
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                # # Restore model
+                self.model.load_model(epoch=self.start_epoch-1)
+
                 if self.scheduler:
                     self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
@@ -439,7 +442,6 @@ class Trainer(BaseTrainer):
         target = np.expand_dims(observations[:, :, 0].cpu().numpy(), 2)
 
         # Remove warm-up data
-        # if self.config['delta_model']['phy_model']['warm_up_states']:  # NOTE: remove if bug does not reoccur
         target = target[self.config['delta_model']['phy_model']['warm_up']:, :]
 
         # Compute metrics

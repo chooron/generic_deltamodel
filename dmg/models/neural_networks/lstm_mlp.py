@@ -87,4 +87,4 @@ class LstmMlpModel(torch.nn.Module):
 
         ann_out = self.ann(z2)
 
-        return [torch.sigmoid(lstm_out), ann_out]
+        return lstm_out, ann_out

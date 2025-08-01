@@ -83,7 +83,7 @@ class PathBuilder(BaseModel):
             self.model_names,
             self.loss_function,
             self.dynamic_state,
-            self.dynamic_parameters,
+            # self.dynamic_parameters,
         )
 
     def build_path_out(self, model_path: str = None) -> dict[str, Any]:

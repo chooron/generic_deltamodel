@@ -182,6 +182,8 @@ validation/
 # Model optimization config with RayTune
 !tune/
 
-.venv
 data
 paper
+
+实验设计.md
+LOG.md

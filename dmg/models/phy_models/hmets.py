@@ -54,7 +54,7 @@ class hmets(torch.nn.Module):
             # Subsurface (6)
             'coef_runoff': [0.0, 1.0], 'coef_vadose2phreatic': [0.00001, 0.02],
             'coef_vadose': [0.0, 0.1], 'coef_phreatic': [0.00001, 0.01],
-            'vadose_max_level': [0.001, 500.0], 'phreatic_max_level': [0.0, 2000.0]
+            'vadose_max_level': [0.001, 500.0]
         }
 
         # HMETS 没有像 HBV 那样独立的路由参数，它们是主参数集的一部分
@@ -166,16 +166,13 @@ class hmets(torch.nn.Module):
         CUMSNOWMELT = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
 
         # 获取初始水箱水位（基于最大水位的比例）
-        phy_params_last_step = phy_params[-1, :, :]  # 使用最后一个时间步的参数来估算初始状态
+        phy_params_last_step = phy_params[-1, :, :]
         vadose_max_init = change_param_range(
             torch.sigmoid(phy_params_last_step[:, self.phy_param_names.index('vadose_max_level')]),
             self.parameter_bounds['vadose_max_level'])
-        phreatic_max_init = change_param_range(
-            torch.sigmoid(phy_params_last_step[:, self.phy_param_names.index('phreatic_max_level')]),
-            self.parameter_bounds['phreatic_max_level'])
 
         VADOSE_LEVEL = 0.5 * vadose_max_init
-        PHREATIC_LEVEL = 0.5 * phreatic_max_init
+        PHREATIC_LEVEL = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
 
         if warm_up > 0:
             with torch.no_grad():
@@ -232,7 +229,7 @@ class hmets(torch.nn.Module):
             initial_states: list,
             full_param_dict: dict,
             is_warmup: bool
-    ) -> dict:
+    ) -> Union[dict, list]:
         SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL = initial_states
 
         Prcp = forcing[:, :, self.variables.index('Prcp')]
@@ -259,9 +256,6 @@ class hmets(torch.nn.Module):
             RAIN = torch.mul(PRECIP, (Tm[t] >= 0.0).float())
             SNOW = torch.mul(PRECIP, (Tm[t] < 0.0).float())
 
-            ddf_max_t = param_dict['ddf_min'] + param_dict['ddf_plus']
-            fcmax_t = param_dict['fcmin'] + param_dict['fcmin_plus']
-
             # -- 融雪模块 --
             Tdiurnal = Tm[t]
             potential_freezing = param_dict['Kf'] * torch.clamp(param_dict['Tbf'] - Tdiurnal, min=self.nearzero) ** \
@@ -271,7 +265,8 @@ class hmets(torch.nn.Module):
             WATER_IN_SNOWPACK = WATER_IN_SNOWPACK - overnight_freezing
             SNOW_ON_GROUND = SNOW_ON_GROUND + overnight_freezing
 
-            ddf = torch.min(ddf_max_t, param_dict['ddf_min'] * (1 + param_dict['Kcum'] * CUMSNOWMELT))
+            ddf = torch.min(param_dict['ddf_min'] + param_dict['ddf_plus'], param_dict['ddf_min'] \
+                            * (1 + param_dict['Kcum'] * CUMSNOWMELT))
             snowmelt_potential = torch.clamp(ddf * (Tm[t] - param_dict['Tbm']), min=0)
 
             snowmelt = torch.min(snowmelt_potential, SNOW_ON_GROUND + SNOW)
@@ -279,7 +274,8 @@ class hmets(torch.nn.Module):
 
             CUMSNOWMELT = (CUMSNOWMELT + snowmelt) * (SNOW_ON_GROUND > self.nearzero).float()
 
-            water_retention_fraction = torch.clamp(fcmax_t * (1 - param_dict['Ccum'] * CUMSNOWMELT),
+            water_retention_fraction = torch.clamp((param_dict['fcmin'] + param_dict['fcmin_plus']) \
+                                                   * (1 - param_dict['Ccum'] * CUMSNOWMELT),
                                                    min=param_dict['fcmin'])
             water_retention = water_retention_fraction * SNOW_ON_GROUND
 
@@ -312,19 +308,12 @@ class hmets(torch.nn.Module):
 
             vadose_pos_mask = VADOSE_LEVEL > param_dict['vadose_max_level']
             vadose_excess = VADOSE_LEVEL - param_dict['vadose_max_level']
-            horizontal_transfert_mu[t, :, :, 1][vadose_pos_mask] = horizontal_transfert_mu[t, :, :, 1][vadose_pos_mask] \
+            horizontal_transfert_mu[t, :, :, 0][vadose_pos_mask] = horizontal_transfert_mu[t, :, :, 0][vadose_pos_mask] \
                                                                    + vadose_excess[vadose_pos_mask]
             VADOSE_LEVEL = torch.clamp(VADOSE_LEVEL, max=param_dict['vadose_max_level'])
 
             horizontal_transfert_mu[t, :, :, 3] = param_dict['coef_phreatic'] * PHREATIC_LEVEL
             PHREATIC_LEVEL = PHREATIC_LEVEL + vadose2phreatic - horizontal_transfert_mu[t, :, :, 3]
-
-            phreatic_pos_mask = PHREATIC_LEVEL > param_dict['phreatic_max_level']
-            phreatic_excess = PHREATIC_LEVEL - param_dict['phreatic_max_level']
-            horizontal_transfert_mu[t, :, :, 1][phreatic_pos_mask] = horizontal_transfert_mu[t, :, :, 1][
-                                                                         phreatic_pos_mask] + phreatic_excess[
-                                                                         phreatic_pos_mask]
-            PHREATIC_LEVEL = torch.clamp(PHREATIC_LEVEL, max=param_dict['phreatic_max_level'])
 
             # 记录每个mu的模拟变量
             RET_sim_mu[t], vadose_level_sim_mu[t], phreatic_level_sim_mu[t] = RET, VADOSE_LEVEL, PHREATIC_LEVEL
@@ -350,33 +339,33 @@ class hmets(torch.nn.Module):
                 lenF=50
             ).to(horizontal_transfert.dtype)
 
-            rf_surf = horizontal_transfert[:, :, 0].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
-            rf_del = horizontal_transfert[:, :, 1].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
+            rf_delay = horizontal_transfert[:, :, 1].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
+            rf_base = horizontal_transfert[:, :, 2].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
 
             UH1_permuted = UH1.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
             UH2_permuted = UH2.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
 
-            Q_surf_rout = uh_conv(rf_surf, UH1_permuted).permute(2, 0, 1)
-            Q_del_rout = uh_conv(rf_del, UH2_permuted).permute(2, 0, 1)
+            rf_delay_rout = uh_conv(rf_delay, UH1_permuted).permute(2, 0, 1)
+            rf_base_rout = uh_conv(rf_base, UH2_permuted).permute(2, 0, 1)
 
-            Q_hypo = horizontal_transfert[:, :, 2].unsqueeze(-1)
-            Q_gw = horizontal_transfert[:, :, 3].unsqueeze(-1)
+            rf_ruf = horizontal_transfert[:, :, 0].unsqueeze(-1)
+            rf_gwd = horizontal_transfert[:, :, 3].unsqueeze(-1)
 
-            Qsim = Q_surf_rout + Q_del_rout + Q_hypo + Q_gw
+            Qsim = rf_delay_rout + rf_base_rout + rf_ruf + rf_gwd
 
         else:
             Qsim = horizontal_transfert.sum(dim=2).unsqueeze(-1)
-            Q_surf_rout = horizontal_transfert[:, :, 1].unsqueeze(-1)
-            Q_del_rout = horizontal_transfert[:, :, 2].unsqueeze(-1)
-            Q_hypo = horizontal_transfert[:, :, 3].unsqueeze(-1)
-            Q_gw = horizontal_transfert[:, :, 4].unsqueeze(-1)
+            rf_ruf = horizontal_transfert[:, :, 0].unsqueeze(-1)
+            rf_delay_rout = horizontal_transfert[:, :, 1].unsqueeze(-1)
+            rf_base_rout = horizontal_transfert[:, :, 2].unsqueeze(-1)
+            rf_gwd = horizontal_transfert[:, :, 3].unsqueeze(-1)
 
         out_dict = {
             'streamflow': Qsim,
-            'srflow': Q_surf_rout,
-            'interflow': Q_del_rout,
-            'ssflow': Q_hypo,
-            'gwflow': Q_gw,
+            'srflow': rf_ruf,
+            'interflow': rf_delay_rout,
+            'ssflow': rf_base_rout,
+            'gwflow': rf_gwd,
             'AET_hydro': RET_sim_mu.mean(dim=2).unsqueeze(-1),
             'vadose_storage': vadose_level_sim_mu.mean(dim=2).unsqueeze(-1),
             'phreatic_storage': phreatic_level_sim_mu.mean(dim=2).unsqueeze(-1),

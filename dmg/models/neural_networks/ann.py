@@ -33,10 +33,10 @@ class AnnModel(torch.nn.Module):
         self.i2h = Linear(nx, hidden_size)
         self.h2h1 = Linear(hidden_size, hidden_size, bias=True)
         self.h2h2 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2h3 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2h4 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2h5 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2h6 = Linear(hidden_size, hidden_size, bias=True)
+        # self.h2h3 = Linear(hidden_size, hidden_size, bias=True)
+        # self.h2h4 = Linear(hidden_size, hidden_size, bias=True)
+        # self.h2h5 = Linear(hidden_size, hidden_size, bias=True)
+        # self.h2h6 = Linear(hidden_size, hidden_size, bias=True)
         self.h2o = Linear(hidden_size, ny)
         self.dropout = Dropout(dr)
 
@@ -62,20 +62,19 @@ class AnnModel(torch.nn.Module):
         ht2 = F.relu(self.h2h2(ht1))
         ht2 = self.dropout(ht2)
 
-        ht3 = F.relu(self.h2h3(ht2))
-        ht3 = self.dropout(ht3)
+        # ht3 = F.relu(self.h2h3(ht2))
+        # ht3 = self.dropout(ht3)
 
-        ht4 = F.relu(self.h2h4(ht3))
-        ht4 = self.dropout(ht4)
-
-        ht5 = F.relu(self.h2h5(ht4))
-        ht5 = self.dropout(ht5)
-
-        ht6 = F.relu(self.h2h6(ht5))
-        ht6 = self.dropout(ht6)
-
+        # ht4 = F.relu(self.h2h4(ht3))
+        # ht4 = self.dropout(ht4)
+        #
+        # ht5 = F.relu(self.h2h5(ht4))
+        # ht5 = self.dropout(ht5)
+        #
+        # ht6 = F.relu(self.h2h6(ht5))
+        # ht6 = self.dropout(ht6)
         # Using sigmoid for binary classification or a logistic outcome.
-        return torch.sigmoid(self.h2o(ht6))
+        return self.h2o(ht2)
 
 
 class AnnCloseModel(torch.nn.Module):
