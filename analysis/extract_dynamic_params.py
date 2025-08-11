@@ -4,9 +4,13 @@ from os.path import join
 
 from shapely.lib import length
 
-load_path = r"E:\PaperCode\generic_deltamodel\project\output\blend_continuous_v2.3\camels_531\train1999-2008\no_multi\LstmMlpModel_E100_R365_B100_H256_512_n16_noLn_noWU_111111\blendv2c\NseBatchLoss\stat\test1989-1999_Ep100"
+load_path = r"E:\PaperCode\generic_deltamodel\project\output\blendv3.1\camels_531\train1999-2008\no_multi\LstmMlpModel_E100_R365_B100_H128_128_n1_noLn_noWU_111111\blendv3\NseBatchLoss\stat\test1989-1999_Ep100"
 
-w1_arr = np.load(join(load_path, 'w4.npy'))
+w1_arr = np.load(join(load_path, 'all_infil.npy')).squeeze()
+ww_arr = np.load(join(load_path, 'weight_params.npy')).squeeze()
+s2_arr = np.load(join(load_path, 'soilwater2.npy')).squeeze()
+tt = w1_arr[:,1,:]
+ww = ww_arr[:,1,:]
 w2_arr = np.load(join(load_path, 'w5.npy'))
 w3_arr = np.load(join(load_path, 'w6.npy'))
 

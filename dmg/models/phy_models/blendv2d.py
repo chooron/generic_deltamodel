@@ -474,6 +474,8 @@ class blendv2d(torch.nn.Module):
             UH1_permuted = UH1.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
             UH2_permuted = UH2.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
 
+            # rf_delay : 100 ,1 ,730
+            # UH1_permuted : 100 ,1 ,50
             rf_delay_rout = uh_conv(rf_delay, UH1_permuted).permute(2, 0, 1)
             rf_base_rout = uh_conv(rf_base, UH2_permuted).permute(2, 0, 1)
 

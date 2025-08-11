@@ -377,7 +377,7 @@ class Trainer(BaseTrainer):
                     dim = 1
                 else:
                     dim = 0
-                data[key] = torch.cat([d[key] for d in batch_list], dim=dim).cpu().numpy()
+                data[key] = torch.cat([d[key] for d in batch_list], dim=1).cpu().numpy()
             return data
 
         except ValueError as e:

@@ -255,8 +255,8 @@ def save_outputs(config, predictions, y_obs=None, create_dirs=False) -> None:
                 dim = 1
             else:
                 dim = 0
-
-            c_tensor = torch.cat([d[key] for d in predictions], dim=dim)
+            # print([d[key].size() for d in predictions])
+            c_tensor = torch.cat([d[key] for d in predictions], dim=1)
             file_name = key + ".npy"
 
             np.save(os.path.join(config['out_path'], file_name), c_tensor.numpy())

@@ -1,32 +1,17 @@
-# blendv2代表使用LSTM对模型中动态参数进行预测，然后使用MLP模型对静态参数进行预测
+# blendv3利用最新的算法，
 # 其中动态参数为每个公式的权重，静态参数为其余的参数值, 共计35个参数值
 # 模型的权重值是通过softmax进行处理
-
+from functools import reduce
 from typing import Any, Optional, Union
 
+import numpy as np
 import torch
 from torch import clamp
 from hydrodl2.core.calc import change_param_range, uh_conv, uh_gamma
-from fluxes import *
+from dmg.models.phy_models.fluxes import *
 
 
-def snobal_hbv(tmean, snowfall, rainfall, cumulmelt, snowpack, liquidwater, nearzero, param_dict):
-    ddf = torch.min(param_dict['ddf_min'] + param_dict['ddf_plus'], param_dict['ddf_min'] \
-                    * (1 + param_dict['Kcum'] * cumulmelt))
-    potenmelt = clamp(ddf * (tmean - param_dict['Tbm']), min=0)
-    refreeze = torch.min(param_dict['Kf_hbv'] * clamp(param_dict['Tbf'] - tmean, min=nearzero), liquidwater)
-    snowpack = snowpack + snowfall + refreeze
-    snowmelt = torch.min(potenmelt, snowpack + snowfall + refreeze)
-    cumulmelt = (cumulmelt + snowmelt) * (snowpack > nearzero).float()
-    snowpack = clamp(snowpack - snowmelt, min=nearzero)
-    water_retention = param_dict['SWI'] * snowpack
-    water_in_snowpack_temp = liquidwater + snowmelt + rainfall
-    overflow = clamp(water_in_snowpack_temp - water_retention, min=0)
-    liquidwater = torch.where(overflow > 0, water_retention, water_in_snowpack_temp)
-    return snowpack, liquidwater, cumulmelt, snowmelt, refreeze, overflow
-
-
-class blendv2c(torch.nn.Module):
+class blendv3(torch.nn.Module):
     """
     blend 模型 based on (HMETS, HBV and VIC)
 
@@ -60,8 +45,8 @@ class blendv2c(torch.nn.Module):
         self.variables = ['Prcp', 'Tmean', 'Pet']
         self.routing = True
         self.initialize = False
-        self.nearzero = 1e-5
         self.nmul = 1
+        self.nearzero = 1e-6
 
         self.parameter_bounds = {
             # Infiltration (入渗)
@@ -70,44 +55,43 @@ class blendv2c(torch.nn.Module):
             'inf_vic_bexp': [0.001, 3.0],  # [Inf-VICARNO] VIC-ARNO Method bexp
             'inf_hmets_alpha': [0.3, 1.0],  # [Inf-HMETS] HMETS Method alpha
 
-            # Surface Runoff (地表径流)
-            'sr_soil_depth_1': [0.05, 0.5],  # Infiltration Excess fixed soil depth for soil 1
-
             # Baseflow Soil 1 (土壤层1基流)
             'bf1_gr4j_x3': [20.0, 300.0],  # [BF1-GR4J] GR4J Method X3-1
-            'bf1_pl_bfc': [0.001, 0.5],  # [BF1-PL] Power Law Baseflow BFc1
-            'bf1_pl_bfn': [1.0, 5.0],  # [BF1-PL] Power Law Baseflow BFn1
-            'bf1_vic_bfmax': [0.1, 50.0],  # [BF1-VIC] VIC Method BFmax1
-            'bf1_vic_bfn': [1.0, 5.0],  # [BF1-VIC] VIC Method BFn1
-            'bf1_top_bfmax': [0.1, 50.0],  # [BF1-TOPMOD] TOPMODEL Method BFmax1
-            'bf1_top_bfn': [1.0, 5.0],  # [BF1-TOPMOD] TOPMODEL Method BFn1
-            'bf1_top_lam': [5.0, 10.0],  # [BF1-TOPMOD] TOPMODEL Method lam1
-            'bf1_thresh_bfmax': [0.1, 50.0],  # [BF1-THRESH] Threshold Baseflow BFmax1
-            'bf1_thresh_bfn': [1.0, 5.0],  # [BF1-THRESH] Threshold Baseflow BFn1
-            'bf1_thresh_bfthresh': [0.0, 1.0],  # [BF1-THRESH] Threshold Baseflow BFThresh1
+            'bf1_bfc': [-8.0, -2.0],  # [BF1-PL] Power Law Baseflow BFc1
+            'bf1_bfn': [1.0, 5.0],  # [BF1-PL] Power Law Baseflow BFn1
+            'bf1_bfmax': [0.1, 200.0],  # [BF1-VIC] VIC Method BFmax1
+            'bf1_lam': [0.1, 0.5],  # [BF1-TOPMOD] TOPMODEL Method lam1
+            'bf1_thresh': [0.0001, 0.9999],  # [BF1-THRESH] Threshold Baseflow BFThresh1
 
             # Percolation (渗漏)
-            'perc_gawser_maxperc': [1.0, 50.0],  # [Perc] GAWSER Method MaxPerc
+            'max_perc': [1.0, 50.0],  # [Perc] GAWSER Method MaxPerc
+            'perc_sfc': [0.0001, 0.9999],  # [Perc] saturation at field capacity
 
             # Capillary Rise (毛管上升)
-            'crise_hbv_crise': [0.1, 50.0],  # [CRise] HBV Method CRise
+            'crise_hbv': [0.1, 50.0],  # [CRise] HBV Method CRise
 
             # Baseflow Soil 2 (土壤层2基流)
-            'bf2_con_bfmax': [0.1, 50.0],  # [BF2-CON] Constant Rate BFMax2
-            'bf2_gr4j_x3': [20.0, 300.0],  # [BF2-GR4J] GR4J Method X3-2
-            'bf2_lin_bfc': [0.0001, 0.1],  # [BF2-LIN] Linear Baseflow BFc2
-            'bf2_pl_bfc': [0.0001, 0.1],  # [BF2-PL] Power Law Baseflow BFc2
-            'bf2_pl_bfn': [1.0, 5.0],  # [BF2-PL] Power Law Baseflow BFn2
-            'bf2_vic_bfmax': [0.1, 50.0],  # [BF2-VIC] VIC Method BFmax2
-            'bf2_vic_bfn': [1.0, 5.0],  # [BF2-VIC] VIC Method BFn2
-        }
-        self.weights_name = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9']
-        self.weights_group = [['w1', 'w2', 'w3'], ['w4', 'w5', 'w6'], ['w7', 'w8', 'w9']]
+            'bf2_bfmax': [0.1, 100.0],  # [BF2-CON] Constant Rate BFMax2
+            'bf2_gr4j_x3': [50.0, 500.0],  # [BF2-GR4J] GR4J Method X3-2
+            'bf2_bfc': [-8.0, -2.0],  # [BF2-LIN] Linear Baseflow BFc2
+            'bf2_bfn': [1.0, 5.0],  # [BF2-PL] Power Law Baseflow BFn2
 
-        self.routing_parameter_bounds = {
+            # other fluxes
+            'Tbf': [-5.0, 2.0], 'Kf': [0.0, 5.0],  # Refreeze Hbv
+            'ddf_min': [1.5, 3.0], 'ddf_plus': [0.0, 5.0], 'Kcum': [0.01, 0.2], 'Tbm': [-1.0, 1.0],  # snowmelt Hbv
+            'swi': [0.0, 0.4],  # overflow Hbv
+            'forest_cover': [0.0, 1.0], 'forest_sparseness': [0.0, 1.0],
+            'max_soilwater1': [50.0, 500.0], 'max_soilwater2': [50.0, 500.0],
+            # routing
             'alpha1': [0.3, 20.0], 'beta1': [0.01, 5.0],
             'alpha2': [0.5, 13.0], 'beta2': [0.15, 1.5],
         }
+        self.weights_group = [
+            ['inf_w1', 'inf_w2', 'inf_w3', 'inf_w4', 'inf_w5', 'inf_w6'],
+            ['bf1_w1', 'bf1_w2', 'bf1_w3', 'bf1_w4', 'bf1_w5', 'bf1_w6'],
+            ['bf2_w1', 'bf2_w2', 'bf2_w3', 'bf2_w4', 'bf2_w5', 'bf2_w6'],
+            ['perc_w', 'capi_w', 'evpr_w', 'evps_w', 'conv1_w', 'conv2_w'],
+        ]
 
         if config is not None:
             self.warm_up = config.get('warm_up', self.warm_up)
@@ -116,58 +100,44 @@ class blendv2c(torch.nn.Module):
             self.dynamic_params = config.get('dynamic_params', {}).get(self.__class__.__name__, self.dynamic_params)
             self.variables = config.get('variables', self.variables)
             self.nearzero = config.get('nearzero', self.nearzero)
-            self.nmul = config.get('nmul', self.nmul)
 
-        self.set_parameters()
-
-    def set_parameters(self) -> None:
-        """设置物理参数名称和数量。"""
         self.phy_param_names = list(self.parameter_bounds.keys())
-        if self.routing:
-            self.routing_param_names = self.routing_parameter_bounds.keys()
-        else:
-            self.routing_param_names = []
+        self.weights_name = reduce(lambda x, y: x + y, self.weights_group)
         self.learnable_param_count1 = len(self.weights_name) * self.nmul
-        self.learnable_param_count2 = len(self.phy_param_names) * self.nmul \
-                                      + len(self.routing_param_names)
+        self.learnable_param_count2 = len(self.phy_param_names) * self.nmul
         self.learnable_param_count = self.learnable_param_count1 + self.learnable_param_count2
 
-    def unpack_parameters(self, parameters: tuple[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, None]:
+    def unpack_parameters(self, parameters: tuple[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        # 权重参数为动态的，其余为静态的
         weights_params, hybrid_params = parameters[0], parameters[1]
-        """从神经网络输出中提取物理参数。"""
+        # 从神经网络输出中提取物理参数
         phy_param_count = len(self.parameter_bounds)
         # Physical parameters
         phy_params = torch.sigmoid(hybrid_params[:, :phy_param_count * self.nmul].view(
-            hybrid_params.shape[0],
-            phy_param_count,
-            self.nmul,
+            hybrid_params.shape[0], phy_param_count, self.nmul,
         ))
         weights_params = weights_params.view(
-            weights_params.shape[0],
-            weights_params.shape[1],
-            len(self.weights_name),
-            self.nmul
+            weights_params.shape[0], weights_params.shape[1], len(self.weights_name), self.nmul
         )
         # 获取所有weights的index，然后通过softmax将各组参数投射到0-1
-        for weights in self.weights_group:
+        for (idx, weights) in enumerate(self.weights_group):
             mask = torch.zeros(weights_params.shape[2], dtype=torch.bool)
             weights_index = [self.weights_name.index(weight) for weight in weights]
             mask[weights_index] = True
             tmp_subset_params = weights_params[:, :, mask, :]
-            weights_params[:, :, mask, :] = torch.softmax(tmp_subset_params, dim=2)
-        # Routing parameters
-        routing_params = None
-        if self.routing:
-            routing_params = torch.sigmoid(
-                hybrid_params[:, phy_param_count * self.nmul:],
-            )
-        return phy_params, weights_params, routing_params
+            if idx == 3:
+                weights_params[:, :, mask, :] = torch.round(torch.sigmoid(tmp_subset_params))
+            else:
+                weights_params[:, :, mask, :] = torch.softmax(tmp_subset_params, dim=2)
+        return phy_params, weights_params
 
     def descale_phy_parameters(self, phy_params: torch.Tensor) -> dict:
         """将归一化的物理参数去归一化到其物理范围。"""
         phy_param_dict = {}
         for i, name in enumerate(self.phy_param_names):
             phy_param_dict[name] = change_param_range(phy_params[:, i, :], self.parameter_bounds[name])
+            if name in ['alpha1', 'beta1', 'alpha2', 'beta2']:
+                phy_param_dict[name] = phy_param_dict[name].unsqueeze(2)
         return phy_param_dict
 
     def descale_weight_parameters(self, weight_params: torch.Tensor) -> dict:
@@ -175,17 +145,6 @@ class blendv2c(torch.nn.Module):
         for i, name in enumerate(self.weights_name):
             weight_param_dict[name] = weight_params[:, :, i, :]
         return weight_param_dict
-
-    def descale_rout_parameters(self, routing_params: torch.Tensor) -> dict:
-        """将归一化的路由参数去归一化到其物理范围。"""
-        parameter_dict = {}
-        for i, name in enumerate(self.routing_parameter_bounds.keys()):
-            param = routing_params[:, i]
-            parameter_dict[name] = change_param_range(
-                param=param,
-                bounds=self.routing_parameter_bounds[name],
-            )
-        return parameter_dict
 
     def forward(
             self,
@@ -197,11 +156,8 @@ class blendv2c(torch.nn.Module):
         x = x_dict['x_phy']  # shape: [time, grids, vars]
 
         # 解包参数
-        phy_params, weights_params, routing_params = self.unpack_parameters(parameters)
+        phy_params, weights_params = self.unpack_parameters(parameters)
         phy_params_dict = self.descale_phy_parameters(phy_params)
-
-        if self.routing:
-            self.routing_param_dict = self.descale_rout_parameters(routing_params)
 
         # --- 状态预热 ---
         if self.warm_up_states:
@@ -210,23 +166,17 @@ class blendv2c(torch.nn.Module):
             self.pred_cutoff = self.warm_up
             warm_up = 0
 
+        # 初始化模型状态 snowpack_, liquidwater_, soilwater1_, soilwater2_
         n_grid = x.size(1)
-
-        # 初始化模型状态
-        SNOW_ON_GROUND = torch.zeros([n_grid, self.nmul, 3], dtype=torch.float32, device=self.device) + self.nearzero
-        WATER_IN_SNOWPACK = torch.zeros([n_grid, self.nmul, 3], dtype=torch.float32, device=self.device) + self.nearzero
-        CUMSNOWMELT = torch.zeros([n_grid, self.nmul, 3], dtype=torch.float32, device=self.device) + self.nearzero
-        PHREATIC_LEVEL = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
-
-        # 获取初始水箱水位（基于最大水位的比例）
-        vadose_max_init = change_param_range(
-            torch.sigmoid(phy_params[:, self.phy_param_names.index('vadose_max_level')]),
-            self.parameter_bounds['vadose_max_level'])
-        VADOSE_LEVEL = 0.5 * vadose_max_init
+        snowpack_ = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
+        liquidwater_ = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
+        cummelt_ = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
+        soilwater1_ = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
+        soilwater2_ = torch.zeros([n_grid, self.nmul], dtype=torch.float32, device=self.device) + self.nearzero
 
         if warm_up > 0:
             with torch.no_grad():
-                initial_states = [SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL]
+                initial_states = [snowpack_, liquidwater_, cummelt_, soilwater1_, soilwater2_]
                 weights_params_warmup = self.descale_weight_parameters(weights_params[:warm_up, :, :])
                 # Save current model settings.
                 initialize = self.initialize
@@ -244,7 +194,7 @@ class blendv2c(torch.nn.Module):
                                      "phy_params": phy_params_dict},
                     is_warmup=True
                 )
-                SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL = final_states
+                snowpack_, liquidwater_, cummelt_, soilwater1_, soilwater2_ = final_states
 
                 # Restore model settings.
                 self.initialize = initialize
@@ -252,11 +202,10 @@ class blendv2c(torch.nn.Module):
 
         out_dict = self.PBM(
             forcing=x[warm_up:, :, :],
-            initial_states=[SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL],
+            initial_states=[snowpack_, liquidwater_, cummelt_, soilwater1_, soilwater2_],
             full_param_dict={"weights_params": self.descale_weight_parameters(weights_params[warm_up:, :, :]),
                              "phy_params": phy_params_dict},
             is_warmup=False,
-            muwts=x_dict.get('muwts', None)
         )
 
         if not self.warm_up_states and self.pred_cutoff > 0:
@@ -272,30 +221,36 @@ class blendv2c(torch.nn.Module):
             initial_states: list,
             full_param_dict: dict,
             is_warmup: bool,
-            muwts=None
     ) -> Union[dict, list]:
-        SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL = initial_states
+        snowpack_, liquidwater_, cumulmelt_, soilwater1_, soilwater2_ = initial_states
 
-        Prcp = forcing[:, :, self.variables.index('Prcp')]
-        Tmean = forcing[:, :, self.variables.index('Tmean')]
-        Pet = forcing[:, :, self.variables.index('Pet')]
-        n_steps, n_grid = Prcp.size()
+        Pm = forcing[:, :, self.variables.index('Prcp')].unsqueeze(2)
+        Tm = forcing[:, :, self.variables.index('Tmean')].unsqueeze(2)
+        Petm = forcing[:, :, self.variables.index('Pet')].unsqueeze(2)
+        n_steps, n_grid, _ = Pm.size()
 
-        Pm = Prcp.unsqueeze(2).repeat(1, 1, self.nmul)
-        Tm = Tmean.unsqueeze(2).repeat(1, 1, self.nmul)
-        Petm = Pet.unsqueeze(2).repeat(1, 1, self.nmul)
+        snowpack_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device,
+                                           dtype=Pm.dtype) + self.nearzero
+        liquidwater_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device,
+                                              dtype=Pm.dtype) + self.nearzero
+        soilwater1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device,
+                                             dtype=Pm.dtype) + self.nearzero
+        soilwater2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device,
+                                             dtype=Pm.dtype) + self.nearzero
 
-        horizontal_transfert_mu = torch.zeros(n_steps, n_grid, self.nmul, 4, device=self.device, dtype=Pm.dtype)
-        RET_sim_mu = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
-        vadose_level_sim_mu = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
-        phreatic_level_sim_mu = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
+        surfaceflow_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
+        baseflow1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
+        baseflow2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
 
-        dynamic_weights_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 9, device=self.device, dtype=Pm.dtype)
-        overflow_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 3, device=self.device, dtype=Pm.dtype)
-        infil_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 3, device=self.device, dtype=Pm.dtype)
-        quickflow_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 3, device=self.device, dtype=Pm.dtype)
+        all_infil_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
+        all_baseflow1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
+        all_baseflow2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
 
         param_dict = full_param_dict['phy_params']
+        weights_param_arr = torch.cat(
+            [full_param_dict['weights_params'][k] for k in full_param_dict['weights_params'].keys()],
+            dim=2)
+        near_zeros = torch.zeros(n_grid, self.nmul, device=self.device, dtype=Pm.dtype) + self.nearzero
 
         for t in range(n_steps):
             for key in full_param_dict['weights_params'].keys():
@@ -305,10 +260,16 @@ class blendv2c(torch.nn.Module):
             prcp_, temp_, pet_ = Pm[t], Tm[t], Petm[t]
             rainfall_ = torch.mul(prcp_, (temp_ >= 0.0).float())
             snowfall_ = torch.mul(prcp_, (temp_ < 0.0).float())
+
+            # -- 截留 --
+            canopy_ = pet_ * param_dict['forest_cover'] * (1 - param_dict['forest_sparseness'])
+            rainfall_ = clamp(rainfall_ - canopy_ * param_dict['evpr_w'], min=0.0)
+            snowfall_ = clamp(snowfall_ - canopy_ * param_dict['evps_w'], min=0.0)
+
             # -- 融雪模块 --
-            # todo 控制不设置refreeze
             refreeze_ = refreeze_hbv(temp_, liquidwater_, param_dict['Tbf'], param_dict['Kf'])
             snowpack_ = snowpack_ + snowfall_ + refreeze_
+            liquidwater_ = liquidwater_ - refreeze_
             snowmelt_ = snowmelt_hbv(temp_, snowpack_, cumulmelt_,
                                      param_dict['ddf_min'], param_dict['ddf_plus'],
                                      param_dict['Kcum'], param_dict['Tbm'])
@@ -320,157 +281,143 @@ class blendv2c(torch.nn.Module):
 
             # -- 下渗 --
             inf_flush_ = infiltration_flush(overflow_)
-            inf_gr4j_ = infiltration_gr4j(soilwater_, overflow_, param_dict['field_capacity'])
+            inf_gr4j_ = infiltration_gr4j(soilwater1_, overflow_, param_dict['max_soilwater1'])
             inf_pc_ = infiltration_partitioning_coefficient(overflow_, param_dict['inf_pc'])
-            inf_hbv_ = infiltration_hbv(overflow_, soilwater_, param_dict['field_capacity'], param_dict['inf_hbv_beta'])
-            inf_vicarno_ = infiltration_vic_arno(overflow_, soilwater_,
-                                                 param_dict['field_capacity'], param_dict['inf_vic_bexp'])
-            inf_hmets_ = infiltration_hmets(overflow_, soilwater_,
-                                            param_dict['field_capacity'], param_dict['inf_hmets_alpha'])
+            inf_hbv_ = infiltration_hbv(overflow_, soilwater1_, param_dict['max_soilwater1'],
+                                        param_dict['inf_hbv_beta'])
+            inf_vicarno_ = infiltration_vic_arno(overflow_, soilwater1_,
+                                                 param_dict['max_soilwater1'], param_dict['inf_vic_bexp'])
+            inf_hmets_ = infiltration_hmets(overflow_, soilwater1_,
+                                            param_dict['max_soilwater1'], param_dict['inf_hmets_alpha'])
 
             inf_weight_avg_ = param_dict['inf_w1'] * inf_flush_ + \
                               param_dict['inf_w2'] * inf_gr4j_ + \
                               param_dict['inf_w3'] * inf_pc_ + \
                               param_dict['inf_w4'] * inf_hbv_ + \
-                              param_dict['inf_w5'] * inf_hmets_
+                              param_dict['inf_w5'] * inf_vicarno_ + \
+                              param_dict['inf_w6'] * inf_hmets_
 
             surface_flow_ = overflow_ - inf_weight_avg_
-            soilwater_ = soilwater_ + inf_weight_avg_
-            soilevap_ = soil_evaporation_hbv(pet_, soilwater_, param_dict['field_capacity'])
-            """
-            'bf1_gr4j_x3': [20.0, 300.0],  # [BF1-GR4J] GR4J Method X3-1
-            'bf1_pl_bfc': [0.001, 0.5],  # [BF1-PL] Power Law Baseflow BFc1
-            'bf1_pl_bfn': [1.0, 5.0],  # [BF1-PL] Power Law Baseflow BFn1
-            'bf1_vic_bfmax': [0.1, 50.0],  # [BF1-VIC] VIC Method BFmax1
-            'bf1_vic_bfn': [1.0, 5.0],  # [BF1-VIC] VIC Method BFn1
-            'bf1_top_bfmax': [0.1, 50.0],  # [BF1-TOPMOD] TOPMODEL Method BFmax1
-            'bf1_top_bfn': [1.0, 5.0],  # [BF1-TOPMOD] TOPMODEL Method BFn1
-            'bf1_top_lam': [5.0, 10.0],  # [BF1-TOPMOD] TOPMODEL Method lam1
-            'bf1_thresh_bfmax': [0.1, 50.0],  # [BF1-THRESH] Threshold Baseflow BFmax1
-            'bf1_thresh_bfn': [1.0, 5.0],  # [BF1-THRESH] Threshold Baseflow BFn1
-            'bf1_thresh_bfthresh': [0.0, 1.0],  # [BF1-THRESH] Threshold Baseflow BFThresh1
-            """
-            baseflow1_noflow_ = torch.zeros_like(soilwater_)
-            baseflow1_gr4j_ = baseflow_gr4j_exchange(soilwater_, param_dict['bf1_gr4j_x3'])
-            baseflow1_power = baseflow_power_law(soilwater_, param_dict['bf1_pl_bfc'], param_dict['bf1_pl_bfn'])
-            
+            soilevap_ = soil_evaporation_hbv(pet_, soilwater1_, param_dict['max_soilwater1'])
+            soilwater1_ = torch.clamp(soilwater1_ + inf_weight_avg_ - soilevap_,
+                                      min=near_zeros, max=param_dict['max_soilwater1'])
 
+            baseflow1_noflow_ = torch.zeros_like(soilwater1_)
+            baseflow1_gr4j_ = baseflow_gr4j_exchange(soilwater1_, param_dict['bf1_gr4j_x3'])
+            baseflow1_power_ = baseflow_power_law(soilwater1_, param_dict['bf1_bfc'], param_dict['bf1_bfn'])
+            baseflow1_vic_ = baseflow_vic(soilwater1_, param_dict['max_soilwater1'],
+                                          param_dict['bf1_bfmax'], param_dict['bf1_bfn'])
+            baseflow1_topmodel_ = baseflow_topmodel(soilwater1_,
+                                                    param_dict['max_soilwater1'], param_dict['bf1_bfmax'],
+                                                    param_dict['bf1_lam'], param_dict['bf1_bfn'])
+            baseflow1_threshold_ = baseflow_threshold(soilwater1_,
+                                                      param_dict['max_soilwater1'], param_dict['bf1_bfmax'],
+                                                      param_dict['bf1_bfn'], param_dict['bf1_thresh'])
+            baseflow1_ = param_dict['bf1_w1'] * baseflow1_noflow_ + \
+                         param_dict['bf1_w2'] * baseflow1_gr4j_ + \
+                         param_dict['bf1_w3'] * baseflow1_power_ + \
+                         param_dict['bf1_w4'] * baseflow1_vic_ + \
+                         param_dict['bf1_w5'] * baseflow1_topmodel_ + \
+                         param_dict['bf1_w6'] * baseflow1_threshold_
 
-            # -- 土壤蒸发计算 --
-            RET = clamp(param_dict['ET_efficiency'] * Petm[t], max=water_available)
-            water_available = water_available - RET
-            # -- 下渗计算 --
-            VADOSE_PROP = clamp(VADOSE_LEVEL / param_dict['vadose_max_level'],
-                                max=1.0 - self.nearzero, min=self.nearzero)
-            infil_1 = infil_hmets(VADOSE_PROP, param_dict)
-            infil_2 = infil_vic_arno(VADOSE_PROP, param_dict)
-            infil_3 = infil_hbv(VADOSE_PROP, param_dict)
-            nearzero_arr = torch.ones_like(water_available) * self.nearzero
-            infiltration = water_available * clamp((param_dict['w4'] * infil_1 + param_dict['w5'] * infil_2
-                                                    + param_dict['w6'] * infil_3), min=self.nearzero, max=1.0)
+            soilwater1_ = torch.clamp(soilwater1_ - baseflow1_, min=near_zeros)
+            percolation_ = percolation_gawser(soilwater1_, param_dict['max_perc'],
+                                              param_dict['max_soilwater1'], param_dict['perc_sfc'])
+            capillary_ = capillary_rise_hbv(soilwater2_, param_dict['max_soilwater2'], param_dict['crise_hbv'])
+            soilwater1_ = torch.clamp(
+                soilwater1_ - percolation_ * param_dict['perc_w'] + capillary_ * param_dict['capi_w'],
+                min=near_zeros, max=param_dict['max_soilwater1'])
 
-            horizontal_transfert_mu[t, :, :, 0] = water_available - infiltration
-            VADOSE_LEVEL = clamp(VADOSE_LEVEL + infiltration - RET, min=self.nearzero)
-            # -- 快速流计算 --
-            VADOSE_PROP_new = clamp(VADOSE_LEVEL / param_dict['vadose_max_level'],
-                                    max=1.0 - self.nearzero, min=self.nearzero)
-            quickflow_1 = quickflow_exphydro(VADOSE_LEVEL, param_dict, self.nearzero)
-            quickflow_2 = quickflow_vic(VADOSE_PROP_new, param_dict, self.nearzero)
-            quickflow_3 = quickflow_thresh(VADOSE_PROP_new, param_dict, self.nearzero)
-            horizontal_transfert_mu[t, :, :, 1] = clamp(param_dict['mmax'] *
-                                                        (param_dict['w7'] * quickflow_1
-                                                         + param_dict['w8'] * quickflow_2
-                                                         + param_dict['w9'] * quickflow_3),
-                                                        min=nearzero_arr, max=VADOSE_LEVEL)
-            # -- 基流计算 -- 仅适用一个
-            horizontal_transfert_mu[t, :, :, 2] = baseflow_linear(VADOSE_LEVEL, param_dict)
+            # soilwater 2
+            soilwater2_ = torch.clamp(
+                soilwater2_ - capillary_ * param_dict['capi_w'] + percolation_ * param_dict['perc_w'],
+                min=near_zeros, max=param_dict['max_soilwater2'])
+            baseflow2_noflow_ = torch.zeros_like(soilwater2_)
+            baseflow2_const_ = baseflow_constant_rate(soilwater2_, param_dict['bf2_bfmax'])
+            baseflow2_gr4j_ = baseflow_gr4j_exchange(soilwater2_, param_dict['bf2_gr4j_x3'])
+            baseflow2_lin_ = baseflow_linear(soilwater2_, param_dict['bf2_bfc'])
+            baseflow2_pl_ = baseflow_power_law(soilwater2_, param_dict['bf2_bfc'], param_dict['bf2_bfn'])
+            baseflow2_vic_ = baseflow_vic(soilwater2_, param_dict['max_soilwater2'],
+                                          param_dict['bf2_bfmax'], param_dict['bf2_bfn'])
+            baseflow2_ = param_dict['bf2_w1'] * baseflow2_noflow_ + \
+                         param_dict['bf2_w2'] * baseflow2_const_ + \
+                         param_dict['bf2_w3'] * baseflow2_gr4j_ + \
+                         param_dict['bf2_w4'] * baseflow2_lin_ + \
+                         param_dict['bf2_w5'] * baseflow2_pl_ + \
+                         param_dict['bf2_w6'] * baseflow2_vic_
+            soilwater2_ = torch.clamp(soilwater2_ - baseflow2_, min=near_zeros)
+            # save various flow
+            surfaceflow_placeholder[t, :, :] = surface_flow_
+            baseflow1_placeholder[t, :, :] = baseflow1_
+            baseflow2_placeholder[t, :, :] = baseflow2_
 
-            vadose2phreatic = param_dict['coef_vadose2phreatic'] * VADOSE_LEVEL
-            VADOSE_LEVEL = clamp(VADOSE_LEVEL - horizontal_transfert_mu[t, :, :, 1] \
-                                 - horizontal_transfert_mu[t, :, :, 2] - vadose2phreatic, min=self.nearzero)
+            # save states
+            snowpack_placeholder[t, :, :] = snowpack_
+            liquidwater_placeholder[t, :, :] = liquidwater_
+            soilwater1_placeholder[t, :, :] = soilwater1_
+            soilwater2_placeholder[t, :, :] = soilwater2_
 
-            vadose_pos_mask = VADOSE_LEVEL > param_dict['vadose_max_level']
-            vadose_excess = VADOSE_LEVEL - param_dict['vadose_max_level']
-            horizontal_transfert_mu[t, :, :, 0][vadose_pos_mask] = horizontal_transfert_mu[t, :, :, 0][vadose_pos_mask] \
-                                                                   + vadose_excess[vadose_pos_mask]
-            VADOSE_LEVEL = clamp(VADOSE_LEVEL, max=param_dict['vadose_max_level'])
+            for i, infil in enumerate([inf_flush_, inf_gr4j_, inf_pc_,
+                                       inf_hbv_, inf_vicarno_, inf_hmets_]):
+                all_infil_placeholder[t, :, :, i] = infil
 
-            horizontal_transfert_mu[t, :, :, 3] = param_dict['coef_phreatic'] * PHREATIC_LEVEL
-            PHREATIC_LEVEL = clamp(PHREATIC_LEVEL + vadose2phreatic - horizontal_transfert_mu[t, :, :, 3],
-                                   min=self.nearzero)
+            for i, baseflow1 in enumerate([baseflow1_noflow_, baseflow1_gr4j_,
+                                           baseflow1_power_, baseflow1_vic_,
+                                           baseflow1_topmodel_, baseflow1_threshold_]):
+                all_baseflow1_placeholder[t, :, :, i] = baseflow1
 
-            RET_sim_mu[t], vadose_level_sim_mu[t], phreatic_level_sim_mu[t] = RET, VADOSE_LEVEL, PHREATIC_LEVEL
-
-            # -- 存储动态参数值 --
-            for i in range(9):
-                dynamic_weights_placeholder[t, :, :, i] = param_dict[f'w{i + 1}']
-
-            # -- 存储各个变量的值 --
-            for i, overflow in enumerate([overflow_1, overflow_2, overflow_3]):
-                overflow_placeholder[t, :, :, i] = overflow
-
-            for i, infil in enumerate([infil_1, infil_2, infil_3]):
-                infil_placeholder[t, :, :, i] = water_available * infil
-
-            for i, quickflow in enumerate([quickflow_1, quickflow_2, quickflow_3]):
-                quickflow_placeholder[t, :, :, i] = param_dict['mmax'] * quickflow
-
-        weights_dict = {f'w{i + 1}': dynamic_weights_placeholder[:, :, :, i] for i in range(9)}
-        overflow_dict = {f'overflow_{i + 1}': overflow_placeholder[:, :, :, i] for i in range(3)}
-        infil_dict = {f'infil_{i + 1}': infil_placeholder[:, :, :, i] for i in range(3)}
-        quickflow_dict = {f'quickflow_{i + 1}': quickflow_placeholder[:, :, :, i] for i in range(3)}
+            for i, baseflow2 in enumerate([baseflow2_noflow_, baseflow2_const_,
+                                           baseflow2_gr4j_, baseflow2_lin_,
+                                           baseflow2_pl_, baseflow2_vic_]):
+                all_baseflow2_placeholder[t, :, :, i] = baseflow2
 
         if is_warmup:
-            return [SNOW_ON_GROUND, WATER_IN_SNOWPACK, CUMSNOWMELT, VADOSE_LEVEL, PHREATIC_LEVEL]
+            return [snowpack_, liquidwater_, soilwater1_, soilwater2_]
 
-        if muwts is None:
-            horizontal_transfert = horizontal_transfert_mu.mean(dim=2)
-        else:
-            horizontal_transfert = (horizontal_transfert_mu * self.muwts).sum(-1)
+        baseflow1_mean = baseflow1_placeholder.mean(dim=2)
+        baseflow2_mean = baseflow2_placeholder.mean(dim=2)
+        surfaceflow_mean = surfaceflow_placeholder.mean(dim=2)
 
-        # --- 流量演算 ---
-        if self.routing:
+        if (param_dict['conv1_w'] > 0).any():
             UH1 = uh_gamma(
-                self.routing_param_dict['alpha1'].repeat(n_steps, 1).unsqueeze(-1),  # Shape: [time, n_grid]
-                self.routing_param_dict['beta1'].repeat(n_steps, 1).unsqueeze(-1),
+                param_dict['alpha1'].squeeze().repeat(n_steps, 1).unsqueeze(-1),  # Shape: [time, n_grid]
+                param_dict['beta1'].squeeze().repeat(n_steps, 1).unsqueeze(-1),
                 lenF=50
-            ).to(horizontal_transfert.dtype)
-            UH2 = uh_gamma(
-                self.routing_param_dict['alpha2'].repeat(n_steps, 1).unsqueeze(-1),
-                self.routing_param_dict['beta2'].repeat(n_steps, 1).unsqueeze(-1),
-                lenF=50
-            ).to(horizontal_transfert.dtype)
-
-            rf_delay = horizontal_transfert[:, :, 1].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
-            rf_base = horizontal_transfert[:, :, 2].permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
-
+            ).to(baseflow1_mean.dtype)
+            # rf_delay : 100 ,1 ,730
+            # UH1_permuted : 100 ,1 ,50
+            bf1_delay = baseflow1_mean.permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
             UH1_permuted = UH1.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
-            UH2_permuted = UH2.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
-
-            rf_delay_rout = uh_conv(rf_delay, UH1_permuted).permute(2, 0, 1)
-            rf_base_rout = uh_conv(rf_base, UH2_permuted).permute(2, 0, 1)
-
-            rf_ruf = horizontal_transfert[:, :, 0].unsqueeze(-1)
-            rf_gwd = horizontal_transfert[:, :, 3].unsqueeze(-1)
-
-            Qsim = rf_delay_rout + rf_base_rout + rf_ruf + rf_gwd
+            bf1_out = uh_conv(bf1_delay, UH1_permuted).permute(2, 0, 1)
         else:
-            Qsim = horizontal_transfert.sum(dim=2).unsqueeze(-1)
-            rf_ruf = horizontal_transfert[:, :, 0].unsqueeze(-1)
-            rf_delay_rout = horizontal_transfert[:, :, 1].unsqueeze(-1)
-            rf_base_rout = horizontal_transfert[:, :, 2].unsqueeze(-1)
-            rf_gwd = horizontal_transfert[:, :, 3].unsqueeze(-1)
+            bf1_out = baseflow1_mean
+
+        if (param_dict['conv2_w'] > 0).any():
+            UH2 = uh_gamma(
+                param_dict['alpha2'].squeeze().repeat(n_steps, 1).unsqueeze(-1),  # Shape: [time, n_grid]
+                param_dict['beta2'].squeeze().repeat(n_steps, 1).unsqueeze(-1),
+                lenF=50
+            ).to(baseflow2_mean.dtype)
+            bf2_delay = baseflow2_mean.permute(1, 0).unsqueeze(1)  # Shape: [n_grid, 1, time]
+            UH2_permuted = UH2.permute(1, 2, 0)  # Shape: [n_grid, 1, time]
+            bf2_out = uh_conv(bf2_delay, UH2_permuted).permute(2, 0, 1)
+        else:
+            bf2_out = baseflow1_mean
+
+        total_flow = bf1_out.squeeze() + bf2_out.squeeze() + surfaceflow_mean
 
         out_dict = {
-            'streamflow': Qsim,
-            'srflow': rf_ruf,
-            'interflow': rf_delay_rout,
-            'ssflow': rf_base_rout,
-            'gwflow': rf_gwd,
-            'AET_hydro': RET_sim_mu.mean(dim=2).unsqueeze(-1),
-            'vadose_storage': vadose_level_sim_mu.mean(dim=2).unsqueeze(-1),
-            'phreatic_storage': phreatic_level_sim_mu.mean(dim=2).unsqueeze(-1),
+            'streamflow': total_flow,
+            'baseflow1': bf1_out.squeeze(),
+            'baseflow2': bf2_out.squeeze(),
+            'surfaceflow': surfaceflow_mean,
+            'snowpack': snowpack_placeholder,
+            'liquidwater': liquidwater_placeholder,
+            'soilwater1': soilwater1_placeholder,
+            'soilwater2': soilwater2_placeholder,
+            'all_infil': all_infil_placeholder,
+            'all_baseflow1': all_baseflow1_placeholder,
+            'all_baseflow2': all_baseflow2_placeholder,
+            'weight_params': weights_param_arr,
         }
-        for d in [weights_dict, overflow_dict, infil_dict, quickflow_dict]:
-            out_dict.update(d)
         return out_dict

@@ -10,7 +10,7 @@ from example import load_config
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = '../example/conf/config_dblendv3.yaml'
+CONFIG_PATH = '../example/conf/config_dblendv2.yaml'
 #------------------------------------------#
 
 # model training

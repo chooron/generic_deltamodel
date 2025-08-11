@@ -25,7 +25,7 @@ data_loader: HydroLoader
 data_sampler: HydroSampler
 trainer: Trainer
 
-save_path: output/blend_discrete
+save_path: output/blendv3.2
 # NOTE: The output path is relative to the current working directory.
 #       If you want to save the output in a different directory, please specify the absolute path.
 #       * If a valid trained_model path is specified, save_path will be set to trained_model.
@@ -39,7 +39,7 @@ train:
   target: [ streamflow ]
   optimizer: Adadelta
   batch_size: 100
-  epochs: 100
+  epochs: 10
   start_epoch: 0
   save_epoch: 5
 
@@ -69,22 +69,17 @@ delta_model:
   rho: 365
 
   phy_model:
-    model: [ blendv2d ]
-    nmul: 16 # 16
+    model: [ blendv3 ]
+    nmul: 1 # 16
     warm_up: 365
     warm_up_states: False
     dy_drop: 0.0
     dynamic_params:
       hmets: [
-        w1,
-        w2,
-        w3,
-        w4,
-        w5,
-        w6,
-        w7,
-        w8,
-        w9
+        inf_w1,inf_w2,inf_w3,inf_w4,inf_w5,inf_w6,
+        bf1_w1,bf1_w2,bf1_w3,bf1_w4,bf1_w5,bf1_w6,
+        bf2_w1,bf2_w2,bf2_w3,bf2_w4,bf2_w5,bf2_w6,
+        perc_w,capi_w,conv1_w,conv2_w,evpr_w,evps_w
       ]
     routing: True
     use_log_norm: [ ]
@@ -100,10 +95,10 @@ delta_model:
     model: LstmMlpModel
 
     lstm_dropout: 0.5
-    lstm_hidden_size: 256
+    lstm_hidden_size: 128
 
     mlp_dropout: 0.5
-    mlp_hidden_size: 512
+    mlp_hidden_size: 128
 
     learning_rate: 1.0
     lr_scheduler: None

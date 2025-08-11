@@ -32,7 +32,7 @@ def soil_evaporation_hbv(pet: torch.Tensor, soil_moisture: torch.Tensor, field_c
     :return: 实际土壤蒸发量。
     """
     # 实际蒸发量与土壤湿润程度成正比。
-    return pet * torch.clamp_max(soil_moisture / field_capacity, 1)
+    return pet * soil_moisture / field_capacity
 
 
 # ----------------------------------------------------------------------------
@@ -61,8 +61,8 @@ def infiltration_gr4j(soil_moisture: torch.Tensor,
     # 计算有效入渗量，当土壤越湿时，入渗比例越小。
     alpha = torch.tanh(ponded_water / field_capacity)
     infiltration = field_capacity * (alpha * (1 - torch.pow(soil_moisture / field_capacity, 2))
-                                     / (1 + alpha * field_capacity) * field_capacity)
-    return infiltration
+                                     / (1 + alpha * soil_moisture / field_capacity))
+    return torch.clamp(infiltration, max=ponded_water)
 
 
 def infiltration_partitioning_coefficient(available_water: torch.Tensor, pc: float) -> torch.Tensor:
@@ -169,7 +169,7 @@ def baseflow_linear(storage: torch.Tensor, bfk: float) -> torch.Tensor:
     :param bfk: 线性退水系数 [1/d]。
     :return: 基流量。
     """
-    return bfk * storage
+    return (10 ** bfk) * storage
 
 
 def baseflow_gr4j_exchange(storage: torch.Tensor, gr4j_x3: torch.Tensor) -> torch.Tensor:
@@ -181,7 +181,8 @@ def baseflow_gr4j_exchange(storage: torch.Tensor, gr4j_x3: torch.Tensor) -> torc
     """
     # 该项描述的是与外部的交换，而非单纯的基流产出。
     # 计算基于储水量的四次方关系。
-    return storage * (1 - torch.pow(1 + torch.pow(storage / gr4j_x3, 4), 1 / 4))
+    return storage * torch.clamp(
+        (1 - torch.pow(1 + (storage / gr4j_x3) ** 4, -1 / 4)), min=0.0)
 
 
 def baseflow_power_law(storage: torch.Tensor, bfc: torch.Tensor, bfn: torch.Tensor) -> torch.Tensor:
@@ -192,7 +193,7 @@ def baseflow_power_law(storage: torch.Tensor, bfc: torch.Tensor, bfn: torch.Tens
     :param bfn: 基流指数 [-]。
     :return: 基流量。
     """
-    return torch.minimum(bfc * torch.pow(storage, bfn), storage)  # 确保基流不超过储水量
+    return torch.minimum((10 ** bfc) * torch.pow(storage, bfn), storage)  # 确保基流不超过储水量
 
 
 def baseflow_vic(storage: torch.Tensor, max_storage: torch.Tensor,
@@ -208,19 +209,22 @@ def baseflow_vic(storage: torch.Tensor, max_storage: torch.Tensor,
     return torch.minimum(bfmax * torch.pow(storage / max_storage, bfn), storage)
 
 
-def baseflow_topmodel(storage: torch.Tensor, bfmax: torch.Tensor, bflambda: torch.Tensor,
-                      bfn: torch.Tensor, capacity: torch.Tensor) -> torch.Tensor:
+def baseflow_topmodel(storage: torch.Tensor, max_storage: torch.Tensor,
+                      bfmax: torch.Tensor, bflambda: torch.Tensor,
+                      bfn: torch.Tensor) -> torch.Tensor:
     """
     TOPMODEL的指数形式基流计算 (TOPMODEL Method)。
     :param storage: 平均饱和水亏。
     :param bfmax: 饱和时的最大基流速率 [mm/d]。
     :param bflambda: 地形水文参数 [m]。
     :param bfn: 地形水文参数 [m]。
-    :param capacity: 地形水文参数 [m]。
+    :param max_storage: 地形水文参数 [m]。
     :return: 基流量。
     """
     # 基流随饱和水亏指数衰减。
-    return bfmax * capacity / bfn * 1 / torch.pow(bflambda, bfn) * torch.pow(storage, capacity)
+    return torch.minimum(
+        bfmax * torch.clamp(max_storage / (bfn * torch.pow(bflambda * max_storage, bfn)), min=1e-6, max=1.0) *
+        torch.pow(storage / max_storage, bfn), storage)
 
 
 def baseflow_threshold(storage: torch.Tensor, max_storage: torch.Tensor,
@@ -234,7 +238,7 @@ def baseflow_threshold(storage: torch.Tensor, max_storage: torch.Tensor,
     :param bfthresh: 产流阈值比例 [0, 1]。
     :return: 基流量。
     """
-    return torch.pow((storage / max_storage - bfthresh) / (1 - bfthresh), bfn) * bfmax
+    return torch.pow(torch.clamp(storage / max_storage - bfthresh, min=1e-6) / (1 - bfthresh), bfn) * bfmax
 
 
 # ----------------------------------------------------------------------------
@@ -242,14 +246,15 @@ def baseflow_threshold(storage: torch.Tensor, max_storage: torch.Tensor,
 # ----------------------------------------------------------------------------
 
 def percolation_gawser(storage: torch.Tensor, max_perc: torch.Tensor,
-                       max_storage: torch.Tensor, fc: torch.Tensor) -> torch.Tensor:
+                       max_storage: torch.Tensor, sfc: torch.Tensor) -> torch.Tensor:
     """
     GAWSER模型中的最大渗漏率法 (GAWSER Method)。
     :param available_water: 可用于渗漏的水量 (如：上层土壤排水)。
     :param max_perc: 最大渗漏速率 [mm/d]。
     :return: 渗漏量。
     """
-    return torch.minimum(storage, max_perc * ((storage - fc) / (max_storage - fc)))
+    return torch.minimum(storage, max_perc *
+                         (torch.clamp(storage - max_storage * sfc, min=1e-6) / (max_storage - max_storage * sfc)))
 
 
 def capillary_rise_hbv(storage: torch.Tensor, max_storage: torch.Tensor, max_caprise: torch.Tensor) -> torch.Tensor:
@@ -266,13 +271,13 @@ def capillary_rise_hbv(storage: torch.Tensor, max_storage: torch.Tensor, max_cap
 
 def snowmelt_hbv(tmean, snowpack, cumulmelt, ddf_min, ddf_plus, Kcum, Tbm):
     ddf = torch.minimum(ddf_min + ddf_plus, ddf_min * (1 + Kcum * cumulmelt))
-    potenmelt = torch.clamp(ddf * (tmean - Tbm), min=0)
+    potenmelt = torch.clamp(ddf * (tmean - Tbm), min=0.0)
     snowmelt = torch.min(potenmelt, snowpack)
     return snowmelt
 
 
 def refreeze_hbv(tmean, liquidwater, Tbf, Kf):
-    return torch.min(Kf * torch.clamp(Tbf - tmean, min=0.00001), liquidwater)
+    return torch.min(Kf * torch.clamp(Tbf - tmean, min=0.0), liquidwater)
 
 
 def overflow_hbv(snowpack, water_in_snowpack, swi):
