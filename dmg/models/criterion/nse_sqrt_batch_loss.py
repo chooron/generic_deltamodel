@@ -3,7 +3,7 @@ from typing import Any, Optional, Union
 import numpy as np
 import torch
 
-from dmg.models.criterion.base import BaseCriterion
+from generic_deltamodel.dmg.models.criterion.base import BaseCriterion
 
 
 class NseSqrtBatchLoss(BaseCriterion):

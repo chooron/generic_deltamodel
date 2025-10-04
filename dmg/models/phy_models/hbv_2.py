@@ -1,7 +1,7 @@
 from typing import Any, Optional, Union
 
 import torch
-
+import torch.nn.functional as F
 from hydrodl2.core.calc import change_param_range, uh_conv, uh_gamma
 
 
@@ -108,7 +108,7 @@ class Hbv_2(torch.nn.Module):
 
     def unpack_parameters(
             self,
-            parameters: torch.Tensor,
+            parameters: tuple[torch.Tensor, torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Extract physical model and routing parameters from NN output.
 
@@ -152,7 +152,7 @@ class Hbv_2(torch.nn.Module):
             self,
             phy_dy_params: torch.Tensor,
             dy_list: list,
-    ) -> torch.Tensor:
+    ) -> dict:
         """Descale physical parameters.
 
         Parameters
@@ -191,7 +191,7 @@ class Hbv_2(torch.nn.Module):
             self,
             phy_stat_params: torch.Tensor,
             stat_list: list,
-    ) -> torch.Tensor:
+    ) -> dict:
         """Descale routing parameters.
 
         Parameters
@@ -217,7 +217,7 @@ class Hbv_2(torch.nn.Module):
     def descale_rout_parameters(
             self,
             routing_params: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> dict:
         """Descale routing parameters.
 
         Parameters
@@ -243,7 +243,7 @@ class Hbv_2(torch.nn.Module):
     def forward(
             self,
             x_dict: dict[str, torch.Tensor],
-            parameters: torch.Tensor,
+            parameters: tuple[torch.Tensor],
     ) -> Union[tuple, dict[str, torch.Tensor]]:
         """Forward pass for HBV1.1p.
 
@@ -261,9 +261,14 @@ class Hbv_2(torch.nn.Module):
         """
         # Unpack input data.
         x = x_dict['x_phy']
-        Ac = x_dict['ac_all'].unsqueeze(-1).repeat(1, self.nmul)
-        Elevation = x_dict['elev_all'].unsqueeze(-1).repeat(1, self.nmul)
         self.muwts = x_dict.get('muwts', None)
+
+        if self.warm_up_states:
+            warm_up = self.warm_up
+        else:
+            # No state warm up - run the full model for warm_up days.
+            self.pred_cutoff = self.warm_up
+            warm_up = 0
 
         # Unpack parameters.
         phy_dy_params, phy_static_params, routing_params = self.unpack_parameters(parameters)
@@ -303,8 +308,6 @@ class Hbv_2(torch.nn.Module):
         # Run the model for the remainder of simulation period.
         return self.PBM(
             x,
-            Ac,
-            Elevation,
             [SNOWPACK, MELTWATER, SM, SUZ, SLZ],
             phy_dy_params_dict,
             phy_static_params_dict,
@@ -313,8 +316,6 @@ class Hbv_2(torch.nn.Module):
     def PBM(
             self,
             forcing: torch.Tensor,
-            Ac: torch.Tensor,
-            Elevation: torch.Tensor,
             states: tuple,
             phy_dy_params_dict: dict,
             phy_static_params_dict: dict,
@@ -377,14 +378,12 @@ class Hbv_2(torch.nn.Module):
 
             # Separate precipitation into liquid and solid components.
             PRECIP = Pm[t, :, :]
-            parTT_new = (Elevation >= 2000).type(torch.float32) * 4.0 + (Elevation < 2000).type(torch.float32) * \
-                        param_dict['parTT']
-            RAIN = torch.mul(PRECIP, (Tm[t, :, :] >= parTT_new).type(torch.float32))
-            SNOW = torch.mul(PRECIP, (Tm[t, :, :] < parTT_new).type(torch.float32))
+            RAIN = torch.mul(PRECIP, (Tm[t, :, :] >= param_dict['parTT']).type(torch.float32))
+            SNOW = torch.mul(PRECIP, (Tm[t, :, :] < param_dict['parTT']).type(torch.float32))
 
             # Snow -------------------------------
             SNOWPACK = SNOWPACK + SNOW
-            melt = param_dict['parCFMAX'] * (Tm[t, :, :] - parTT_new)
+            melt = param_dict['parCFMAX'] * (Tm[t, :, :] - param_dict['parTT'])
             # melt[melt < 0.0] = 0.0
             melt = torch.clamp(melt, min=0.0)
             # melt[melt > SNOWPACK] = SNOWPACK[melt > SNOWPACK]
@@ -392,7 +391,7 @@ class Hbv_2(torch.nn.Module):
             MELTWATER = MELTWATER + melt
             SNOWPACK = SNOWPACK - melt
             refreezing = param_dict['parCFR'] * param_dict['parCFMAX'] * (
-                    parTT_new - Tm[t, :, :]
+                    param_dict['parTT'] - Tm[t, :, :]
             )
             # refreezing[refreezing < 0.0] = 0.0
             # refreezing[refreezing > MELTWATER] = MELTWATER[refreezing > MELTWATER]
@@ -438,12 +437,7 @@ class Hbv_2(torch.nn.Module):
             SUZ = SUZ - Q0
             Q1 = param_dict['parK1'] * SUZ
             SUZ = SUZ - Q1
-            SLZ = SLZ + PERC
-
-            LF = torch.clamp((Ac - param_dict['parAC']) / 1000, min=-1, max=1) * param_dict['parRT'] * (Ac < 2500) + \
-                 torch.exp(torch.clamp(-(Ac - 2500) / 50, min=-10.0, max=0.0)) * param_dict['parRT'] * (Ac >= 2500)
-            SLZ = torch.clamp(SLZ + LF, min=0.0)
-
+            SLZ = torch.clamp(SLZ + PERC, min=0.0)
             Q2 = param_dict['parK2'] * SLZ
             SLZ = SLZ - Q2
 
@@ -537,7 +531,7 @@ class Hbv_2(torch.nn.Module):
                 'tosoil': tosoil_sim.mean(-1, keepdim=True),  # Infiltration
                 'percolation': PERC_sim.mean(-1, keepdim=True),  # Percolation
                 'capillary': capillary_sim.mean(-1, keepdim=True),  # Capillary rise
-                'BFI': BFI_sim,  # Baseflow index
+                # 'BFI': BFI_sim,  # Baseflow index
             }
 
             if not self.warm_up_states:

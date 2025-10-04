@@ -8,7 +8,7 @@ from typing import Any, Optional
 import torch
 from numpy.typing import NDArray
 
-from dmg.core.utils.utils import camel_to_snake
+from generic_deltamodel.dmg.core.utils.utils import camel_to_snake
 
 sys.path.append('../dmg/')  # for tutorials
 
@@ -16,7 +16,7 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
-#------------------------------------------#
+# ------------------------------------------#
 # If directory structure changes, update these module paths.
 # NOTE: potentially move these to a framework config for easier access.
 loader_dir = 'core/data/loaders'
@@ -25,7 +25,9 @@ trainer_dir = 'trainers'
 loss_func_dir = 'models/criterion'
 phy_model_dir = 'models/phy_models'
 nn_model_dir = 'models/neural_networks'
-#------------------------------------------#
+
+
+# ------------------------------------------#
 
 
 def get_dir(dir_name: str) -> Path:
@@ -38,9 +40,9 @@ def get_dir(dir_name: str) -> Path:
 
 
 def load_component(
-    class_name: str,
-    directory: str,
-    base_class: type,
+        class_name: str,
+        directory: str,
+        base_class: type,
 ) -> type:
     """
     Generalized loader function to dynamically import components.
@@ -86,7 +88,8 @@ def load_component(
         if isinstance(class_obj, type) and issubclass(class_obj, base_class):
             return class_obj
 
-    raise ImportError(f"Class '{class_name}' not found in module '{os.path.relpath(source)}' or does not subclass '{base_class.__name__}'.")
+    raise ImportError(
+        f"Class '{class_name}' not found in module '{os.path.relpath(source)}' or does not subclass '{base_class.__name__}'.")
 
 
 def import_phy_model(model: str, ver_name: str = None) -> type:
@@ -105,7 +108,7 @@ def import_phy_model(model: str, ver_name: str = None) -> type:
 
 def import_data_loader(name: str) -> type:
     """Loads a data loader dynamically."""
-    from dmg.core.data.loaders.base import BaseLoader
+    from generic_deltamodel.dmg.core.data.loaders.base import BaseLoader
     return load_component(
         name,
         loader_dir,
@@ -115,7 +118,7 @@ def import_data_loader(name: str) -> type:
 
 def import_data_sampler(name: str) -> type:
     """Loads a data sampler dynamically."""
-    from dmg.core.data.samplers.base import BaseSampler
+    from generic_deltamodel.dmg.core.data.samplers.base import BaseSampler
     return load_component(
         name,
         sampler_dir,
@@ -125,7 +128,7 @@ def import_data_sampler(name: str) -> type:
 
 def import_trainer(name: str) -> type:
     """Loads a trainer dynamically."""
-    from dmg.trainers.base import BaseTrainer
+    from generic_deltamodel.dmg.trainers.base import BaseTrainer
     return load_component(
         name,
         trainer_dir,
@@ -134,10 +137,10 @@ def import_trainer(name: str) -> type:
 
 
 def load_criterion(
-    y_obs: NDArray[np.float32],
-    config: dict[str, Any],
-    name: Optional[str] = None,
-    device: Optional[str] = 'cpu',
+        y_obs: NDArray[np.float32],
+        config: dict[str, Any],
+        name: Optional[str] = None,
+        device: Optional[str] = 'cpu',
 ) -> torch.nn.Module:
     """Dynamically load and initialize a loss function module by name.
 
@@ -176,10 +179,10 @@ def load_criterion(
 
 
 def load_nn_model(
-    phy_model: torch.nn.Module,
-    config: dict[str, dict[str, Any]],
-    ensemble_list: Optional[list] = None,
-    device: Optional[str] = None,
+        phy_model: torch.nn.Module,
+        config: dict[str, dict[str, Any]],
+        ensemble_list: Optional[list] = None,
+        device: Optional[str] = None,
 ) -> torch.nn.Module:
     """
     Initialize a neural network.
@@ -221,10 +224,6 @@ def load_nn_model(
 
         name = config['nn_model']['model']
 
-        if name not in ['LstmMlpModel']:
-            hidden_size = config['nn_model']['hidden_size']
-            dr = config['nn_model']['dropout']
-
     nx = n_forcings + n_attributes
 
     # Dynamically retrieve the model
@@ -239,14 +238,21 @@ def load_nn_model(
         model = cls(
             nx=nx,
             ny=ny,
-            hidden_size=hidden_size,
-            dr=dr,
+            hidden_size=config['nn_model']['hidden_size'],
+            dr=config['nn_model']['dropout'],
         )
     elif name in ['MLP']:
         model = cls(
             config,
             nx=nx,
             ny=ny,
+        )
+    elif name in ['AnnModel']:
+        model = cls(
+            nx=n_attributes,
+            ny=ny,
+            hidden_size=config['nn_model']['hidden_size'],
+            dr=config['nn_model']['dropout'],
         )
     elif name in ['LstmMlpModel']:
         model = cls(
@@ -259,6 +265,18 @@ def load_nn_model(
             dr1=config['nn_model']['lstm_dropout'],
             dr2=config['nn_model']['mlp_dropout'],
             device=device,
+        )
+    elif name in ["DualAttnLstmV1", "DualAttnLstmV2", "DualAttnLstmV3"]:
+        model = cls(
+            seq_input_dim=n_forcings,
+            static_dim=n_attributes,
+            lstm_hidden_dim=config['nn_model']['lstm_hidden_size'],
+            lstm_out_dim=phy_model.learnable_param_count1,
+            mlp_hidden_dim=config['nn_model']['mlp_hidden_size'],
+            mlp_out_dim=phy_model.learnable_param_count2,
+            mlp_dr=config['nn_model']['mlp_dropout'],
+            lstm_dr=config['nn_model']['lstm_dropout'],
+            hru_num=config['phy_model']['nmul'],
         )
     else:
         raise ValueError(f"Model {name} is not supported.")

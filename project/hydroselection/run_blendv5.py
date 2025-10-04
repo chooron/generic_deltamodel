@@ -1,16 +1,12 @@
-import os
 import sys
-
-from dmg.core.data import load_json
-
 sys.path.append(r'E:\PaperCode\generic_deltamodel')
 from dmg import ModelHandler
-from dmg.core.utils import import_data_loader, import_trainer, print_config, set_randomseed
+from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
 from example import load_config
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = '../example/conf/config_dblendv2.yaml'
+CONFIG_PATH = '../example/conf/config_dblendv5.yaml'
 #------------------------------------------#
 
 # model training
@@ -28,7 +24,7 @@ trainer = trainer_cls(
     verbose=True
 )
 
-trainer.train()
+# trainer.train()
 print(f'Training complete. Model saved to \n{config['model_path']}')
 
 # model evaluation

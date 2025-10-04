@@ -5,6 +5,7 @@ from .factory import (import_data_loader, import_data_sampler,
 from .path import PathBuilder
 from .utils import (format_resample_interval, initialize_config, print_config,
                     save_model, set_randomseed)
+from .conf import load_config
 
 __all__ = [
     'import_data_loader',
@@ -14,6 +15,7 @@ __all__ = [
     'initialize_config',
     'load_criterion',
     'load_nn_model',
+    'load_config',
     'PathBuilder',
     'Dates',
     'print_config',

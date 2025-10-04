@@ -88,9 +88,6 @@ class Hbv(torch.nn.Module):
             self.nmul = config.get('nmul', self.nmul)
             if 'parBETAET' in self.dynamic_params:
                 self.parameter_bounds['parBETAET'] = [0.3, 5]
-        self.set_parameters()
-
-    def set_parameters(self) -> None:
         """Get physical parameters."""
         self.phy_param_names = self.parameter_bounds.keys()
         if self.routing:
@@ -99,11 +96,14 @@ class Hbv(torch.nn.Module):
             self.routing_param_names = []
 
         self.learnable_param_count = len(self.phy_param_names) * self.nmul \
-            + len(self.routing_param_names)
+                                     + len(self.routing_param_names)
+        self.learnable_param_count1 = len(self.dynamic_params) * self.nmul
+        self.learnable_param_count2 = (len(self.phy_param_names) - len(self.dynamic_params)) * self.nmul \
+                                      + len(self.routing_param_names)
 
     def unpack_parameters(
         self,
-        parameters: torch.Tensor,
+        parameters: tuple[torch.Tensor, torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Extract physical model and routing parameters from NN output.
         
@@ -117,21 +117,12 @@ class Hbv(torch.nn.Module):
         tuple[torch.Tensor, torch.Tensor]
             Tuple of physical and routing parameters.
         """
-        phy_param_count = len(self.parameter_bounds)
-        
-        # Physical parameters
-        phy_params = torch.sigmoid(
-            parameters[:, :, :phy_param_count * self.nmul]).view(
-                parameters.shape[0],
-                parameters.shape[1],
-                phy_param_count,
-                self.nmul,
-            )
-        # Routing parameters
+        dynamic_parameters, static_parameters = parameters
+        phy_params = torch.sigmoid(dynamic_parameters)
         routing_params = None
         if self.routing:
             routing_params = torch.sigmoid(
-                parameters[-1, :, phy_param_count * self.nmul:],
+                static_parameters[-1, :, self.learnable_param_count2:],
             )
         return phy_params, routing_params
 
@@ -157,7 +148,6 @@ class Hbv(torch.nn.Module):
         n_steps = phy_params.size(0)
         n_grid = phy_params.size(1)
 
-        # TODO: Fix; if dynamic parameters are not entered in config as they are
         # in HBV params list, then descaling misamtch will occur. Confirm this
         # does not happen.
         param_dict = {}

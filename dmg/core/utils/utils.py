@@ -12,8 +12,8 @@ from pydantic import ValidationError
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from dmg.core.utils.dates import Dates
-from dmg.core.utils.path import PathBuilder
+from generic_deltamodel.dmg.core.utils.dates import Dates
+from generic_deltamodel.dmg.core.utils.path import PathBuilder
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def set_system_spec(config: dict) -> tuple[str, str]:
     elif config['device'] == 'cuda':
         # Set the first device as the active device.
         if torch.cuda.is_available() and config['gpu_id'] < torch.cuda.device_count():
-            device = torch.device(f'cuda:{config['gpu_id']}')
+            device = torch.device(f"cuda:{config['gpu_id']}")
             torch.cuda.set_device(device)
         else:
             raise ValueError(f"Selected CUDA device {config['gpu_id']} is not available.")

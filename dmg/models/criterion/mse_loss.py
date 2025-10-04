@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import torch
 
-from dmg.models.criterion.base import BaseCriterion
+from generic_deltamodel.dmg.models.criterion.base import BaseCriterion
 
 
 class MSELoss(BaseCriterion):

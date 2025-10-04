@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import torch.nn
 
-from dmg.core.utils.factory import import_phy_model, load_nn_model
+from generic_deltamodel.dmg.core.utils.factory import import_phy_model, load_nn_model
 
 
 class DplModel(torch.nn.Module):
@@ -79,7 +79,7 @@ class DplModel(torch.nn.Module):
         elif self.config['phy_model']:
             model_name = self.config['phy_model']['model'][0]
         else:
-            raise ValueError("A (1) physics model name or (2) model spec in" /
+            raise ValueError("A (1) physics model name or (2) model spec in"
                              " a configuration dictionary is required.")
 
         model = import_phy_model(model_name)
@@ -113,8 +113,12 @@ class DplModel(torch.nn.Module):
             The output predictions.
         """
         # Neural network
-        if type(self.nn_model).__name__ == 'LstmMlpModel':
+        if type(self.nn_model).__name__ in ['LstmMlpModel', "AttentionLstm"]:
             parameters = self.nn_model(data_dict['xc_nn_norm'], data_dict['c_nn_norm'])
+        elif type(self.nn_model).__name__.startswith('DualAttnLstmV'):
+            parameters = self.nn_model(data_dict['x_nn_norm'], data_dict['c_nn_norm'])
+        elif type(self.nn_model).__name__ in ['MlpModel', 'AnnModel']:
+            parameters = self.nn_model(data_dict['c_nn_norm'])
         else:
             parameters = self.nn_model(data_dict['xc_nn_norm'])
 

@@ -25,7 +25,7 @@ data_loader: HydroLoader
 data_sampler: HydroSampler
 trainer: Trainer
 
-save_path: output/blendv3.2
+save_path: output/blendv3.3
 # NOTE: The output path is relative to the current working directory.
 #       If you want to save the output in a different directory, please specify the absolute path.
 #       * If a valid trained_model path is specified, save_path will be set to trained_model.
@@ -39,9 +39,9 @@ train:
   target: [ streamflow ]
   optimizer: Adadelta
   batch_size: 100
-  epochs: 10
+  epochs: 5
   start_epoch: 0
-  save_epoch: 5
+  save_epoch: 1
 
 
 ## Evaluation -------------------------------#
@@ -75,10 +75,10 @@ delta_model:
     warm_up_states: False
     dy_drop: 0.0
     dynamic_params:
-      hmets: [
-        inf_w1,inf_w2,inf_w3,inf_w4,inf_w5,inf_w6,
-        bf1_w1,bf1_w2,bf1_w3,bf1_w4,bf1_w5,bf1_w6,
-        bf2_w1,bf2_w2,bf2_w3,bf2_w4,bf2_w5,bf2_w6,
+      blendv3: [
+        inf_w3,inf_w4,inf_w5,inf_w6,
+        bf1_w3,bf1_w4,bf1_w5,bf1_w6,
+        bf2_w3,bf2_w4,bf2_w5,bf2_w6,
         perc_w,capi_w,conv1_w,conv2_w,evpr_w,evps_w
       ]
     routing: True

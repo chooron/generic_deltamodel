@@ -2,9 +2,9 @@ from typing import Optional
 
 import torch
 
-from dmg.models.neural_networks.ann import AnnModel
-from dmg.models.neural_networks.cudnn_lstm import CudnnLstmModel
-from dmg.models.neural_networks.lstm import LstmModel
+from generic_deltamodel.dmg.models.neural_networks.ann import AnnModel
+from generic_deltamodel.dmg.models.neural_networks.cudnn_lstm import CudnnLstmModel
+from generic_deltamodel.dmg.models.neural_networks.lstm import LstmModel
 
 
 class LstmMlpModel(torch.nn.Module):

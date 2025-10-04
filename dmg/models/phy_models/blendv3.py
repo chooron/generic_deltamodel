@@ -4,8 +4,6 @@
 from functools import reduce
 from typing import Any, Optional, Union
 
-import numpy as np
-import torch
 from torch import clamp
 from hydrodl2.core.calc import change_param_range, uh_conv, uh_gamma
 from dmg.models.phy_models.fluxes import *
@@ -56,11 +54,11 @@ class blendv3(torch.nn.Module):
             'inf_hmets_alpha': [0.3, 1.0],  # [Inf-HMETS] HMETS Method alpha
 
             # Baseflow Soil 1 (土壤层1基流)
-            'bf1_gr4j_x3': [20.0, 300.0],  # [BF1-GR4J] GR4J Method X3-1
-            'bf1_bfc': [-8.0, -2.0],  # [BF1-PL] Power Law Baseflow BFc1
+            # 'bf1_gr4j_x3': [20.0, 300.0],  # [BF1-GR4J] GR4J Method X3-1
+            'bf1_bfc': [-2.0, -0.0],  # [BF1-PL] Power Law Baseflow BFc1
             'bf1_bfn': [1.0, 5.0],  # [BF1-PL] Power Law Baseflow BFn1
             'bf1_bfmax': [0.1, 200.0],  # [BF1-VIC] VIC Method BFmax1
-            'bf1_lam': [0.1, 0.5],  # [BF1-TOPMOD] TOPMODEL Method lam1
+            'bf1_lam': [1.0, 20.0],  # [BF1-TOPMOD] TOPMODEL Method lam1
             'bf1_thresh': [0.0001, 0.9999],  # [BF1-THRESH] Threshold Baseflow BFThresh1
 
             # Percolation (渗漏)
@@ -72,8 +70,8 @@ class blendv3(torch.nn.Module):
 
             # Baseflow Soil 2 (土壤层2基流)
             'bf2_bfmax': [0.1, 100.0],  # [BF2-CON] Constant Rate BFMax2
-            'bf2_gr4j_x3': [50.0, 500.0],  # [BF2-GR4J] GR4J Method X3-2
-            'bf2_bfc': [-8.0, -2.0],  # [BF2-LIN] Linear Baseflow BFc2
+            # 'bf2_gr4j_x3': [50.0, 500.0],  # [BF2-GR4J] GR4J Method X3-2
+            'bf2_bfc': [-2.0, -0.0],  # [BF2-LIN] Linear Baseflow BFc2
             'bf2_bfn': [1.0, 5.0],  # [BF2-PL] Power Law Baseflow BFn2
 
             # other fluxes
@@ -87,9 +85,9 @@ class blendv3(torch.nn.Module):
             'alpha2': [0.5, 13.0], 'beta2': [0.15, 1.5],
         }
         self.weights_group = [
-            ['inf_w1', 'inf_w2', 'inf_w3', 'inf_w4', 'inf_w5', 'inf_w6'],
-            ['bf1_w1', 'bf1_w2', 'bf1_w3', 'bf1_w4', 'bf1_w5', 'bf1_w6'],
-            ['bf2_w1', 'bf2_w2', 'bf2_w3', 'bf2_w4', 'bf2_w5', 'bf2_w6'],
+            ['inf_w3', 'inf_w4', 'inf_w5', 'inf_w6'],
+            ['bf1_w3', 'bf1_w4', 'bf1_w5', 'bf1_w6'],
+            ['bf2_w3', 'bf2_w4', 'bf2_w5', 'bf2_w6'],
             ['perc_w', 'capi_w', 'evpr_w', 'evps_w', 'conv1_w', 'conv2_w'],
         ]
 
@@ -124,11 +122,12 @@ class blendv3(torch.nn.Module):
             mask = torch.zeros(weights_params.shape[2], dtype=torch.bool)
             weights_index = [self.weights_name.index(weight) for weight in weights]
             mask[weights_index] = True
-            tmp_subset_params = weights_params[:, :, mask, :]
+            tmp_subset_params = torch.sigmoid(weights_params[:, :, mask, :])
             if idx == 3:
-                weights_params[:, :, mask, :] = torch.round(torch.sigmoid(tmp_subset_params))
+                weights_params[:, :, mask, :] = torch.round(tmp_subset_params)
             else:
-                weights_params[:, :, mask, :] = torch.softmax(tmp_subset_params, dim=2)
+                tmp_sum_params = torch.sum(tmp_subset_params, dim=2, keepdim=True)
+                weights_params[:, :, mask, :] = tmp_subset_params / tmp_sum_params
         return phy_params, weights_params
 
     def descale_phy_parameters(self, phy_params: torch.Tensor) -> dict:
@@ -242,9 +241,9 @@ class blendv3(torch.nn.Module):
         baseflow1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
         baseflow2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, device=self.device, dtype=Pm.dtype)
 
-        all_infil_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
-        all_baseflow1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
-        all_baseflow2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 6, device=self.device, dtype=Pm.dtype)
+        all_infil_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 5, device=self.device, dtype=Pm.dtype)
+        all_baseflow1_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 5, device=self.device, dtype=Pm.dtype)
+        all_baseflow2_placeholder = torch.zeros(n_steps, n_grid, self.nmul, 5, device=self.device, dtype=Pm.dtype)
 
         param_dict = full_param_dict['phy_params']
         weights_param_arr = torch.cat(
@@ -278,10 +277,12 @@ class blendv3(torch.nn.Module):
             tmp_water_snowpack_ = liquidwater_ + rainfall_ + snowmelt_
             overflow_ = overflow_hbv(snowpack_, tmp_water_snowpack_, param_dict['swi'])
             liquidwater_ = torch.where(overflow_ > self.nearzero, param_dict['swi'] * snowpack_, tmp_water_snowpack_)
+            # if t == 100:
+            #     print("")
 
             # -- 下渗 --
             inf_flush_ = infiltration_flush(overflow_)
-            inf_gr4j_ = infiltration_gr4j(soilwater1_, overflow_, param_dict['max_soilwater1'])
+            # inf_gr4j_ = infiltration_gr4j(soilwater1_, overflow_, param_dict['max_soilwater1'])
             inf_pc_ = infiltration_partitioning_coefficient(overflow_, param_dict['inf_pc'])
             inf_hbv_ = infiltration_hbv(overflow_, soilwater1_, param_dict['max_soilwater1'],
                                         param_dict['inf_hbv_beta'])
@@ -290,12 +291,13 @@ class blendv3(torch.nn.Module):
             inf_hmets_ = infiltration_hmets(overflow_, soilwater1_,
                                             param_dict['max_soilwater1'], param_dict['inf_hmets_alpha'])
 
-            inf_weight_avg_ = param_dict['inf_w1'] * inf_flush_ + \
-                              param_dict['inf_w2'] * inf_gr4j_ + \
-                              param_dict['inf_w3'] * inf_pc_ + \
+            # param_dict['inf_w2'] * inf_gr4j_ + \
+            # param_dict['inf_w1'] * inf_flush_ + \
+            inf_weight_avg_ = param_dict['inf_w3'] * inf_pc_ + \
                               param_dict['inf_w4'] * inf_hbv_ + \
                               param_dict['inf_w5'] * inf_vicarno_ + \
                               param_dict['inf_w6'] * inf_hmets_
+            # param_dict['inf_w1'] * inf_flush_ + \
 
             surface_flow_ = overflow_ - inf_weight_avg_
             soilevap_ = soil_evaporation_hbv(pet_, soilwater1_, param_dict['max_soilwater1'])
@@ -303,8 +305,9 @@ class blendv3(torch.nn.Module):
                                       min=near_zeros, max=param_dict['max_soilwater1'])
 
             baseflow1_noflow_ = torch.zeros_like(soilwater1_)
-            baseflow1_gr4j_ = baseflow_gr4j_exchange(soilwater1_, param_dict['bf1_gr4j_x3'])
-            baseflow1_power_ = baseflow_power_law(soilwater1_, param_dict['bf1_bfc'], param_dict['bf1_bfn'])
+            # baseflow1_gr4j_ = baseflow_gr4j_exchange(soilwater1_, param_dict['bf1_gr4j_x3'], param_dict['bf1_bfmax'])
+            baseflow1_power_ = baseflow_power_law(soilwater1_, param_dict['bf1_bfc'], param_dict['bf1_bfn'],
+                                                  param_dict['bf1_bfmax'])
             baseflow1_vic_ = baseflow_vic(soilwater1_, param_dict['max_soilwater1'],
                                           param_dict['bf1_bfmax'], param_dict['bf1_bfn'])
             baseflow1_topmodel_ = baseflow_topmodel(soilwater1_,
@@ -313,12 +316,13 @@ class blendv3(torch.nn.Module):
             baseflow1_threshold_ = baseflow_threshold(soilwater1_,
                                                       param_dict['max_soilwater1'], param_dict['bf1_bfmax'],
                                                       param_dict['bf1_bfn'], param_dict['bf1_thresh'])
-            baseflow1_ = param_dict['bf1_w1'] * baseflow1_noflow_ + \
-                         param_dict['bf1_w2'] * baseflow1_gr4j_ + \
-                         param_dict['bf1_w3'] * baseflow1_power_ + \
+            # param_dict['bf1_w2'] * baseflow1_gr4j_ + \
+            # param_dict['bf1_w1'] * baseflow1_noflow_ + \
+            baseflow1_ = param_dict['bf1_w3'] * baseflow1_power_ + \
                          param_dict['bf1_w4'] * baseflow1_vic_ + \
                          param_dict['bf1_w5'] * baseflow1_topmodel_ + \
                          param_dict['bf1_w6'] * baseflow1_threshold_
+            # param_dict['bf1_w1'] * baseflow1_noflow_ + \
 
             soilwater1_ = torch.clamp(soilwater1_ - baseflow1_, min=near_zeros)
             percolation_ = percolation_gawser(soilwater1_, param_dict['max_perc'],
@@ -334,17 +338,22 @@ class blendv3(torch.nn.Module):
                 min=near_zeros, max=param_dict['max_soilwater2'])
             baseflow2_noflow_ = torch.zeros_like(soilwater2_)
             baseflow2_const_ = baseflow_constant_rate(soilwater2_, param_dict['bf2_bfmax'])
-            baseflow2_gr4j_ = baseflow_gr4j_exchange(soilwater2_, param_dict['bf2_gr4j_x3'])
-            baseflow2_lin_ = baseflow_linear(soilwater2_, param_dict['bf2_bfc'])
-            baseflow2_pl_ = baseflow_power_law(soilwater2_, param_dict['bf2_bfc'], param_dict['bf2_bfn'])
+            # da
+            # baseflow2_gr4j_ = baseflow_gr4j_exchange(soilwater2_, param_dict['bf2_gr4j_x3'], param_dict['bf2_bfmax'])
+            # xiao
+            baseflow2_lin_ = baseflow_linear(soilwater2_, param_dict['bf2_bfc'], param_dict['bf2_bfmax'])
+            # # xiao
+            baseflow2_pl_ = baseflow_power_law(soilwater2_, param_dict['bf2_bfc'], param_dict['bf2_bfn'],
+                                               param_dict['bf2_bfmax'])
             baseflow2_vic_ = baseflow_vic(soilwater2_, param_dict['max_soilwater2'],
                                           param_dict['bf2_bfmax'], param_dict['bf2_bfn'])
-            baseflow2_ = param_dict['bf2_w1'] * baseflow2_noflow_ + \
-                         param_dict['bf2_w2'] * baseflow2_const_ + \
-                         param_dict['bf2_w3'] * baseflow2_gr4j_ + \
+            # param_dict['bf2_w3'] * baseflow2_gr4j_ + \
+            # param_dict['bf2_w1'] * baseflow2_noflow_ + \
+            baseflow2_ = param_dict['bf2_w3'] * baseflow2_const_ + \
                          param_dict['bf2_w4'] * baseflow2_lin_ + \
                          param_dict['bf2_w5'] * baseflow2_pl_ + \
                          param_dict['bf2_w6'] * baseflow2_vic_
+            # param_dict['bf2_w1'] * baseflow2_noflow_ + \
             soilwater2_ = torch.clamp(soilwater2_ - baseflow2_, min=near_zeros)
             # save various flow
             surfaceflow_placeholder[t, :, :] = surface_flow_
@@ -357,17 +366,17 @@ class blendv3(torch.nn.Module):
             soilwater1_placeholder[t, :, :] = soilwater1_
             soilwater2_placeholder[t, :, :] = soilwater2_
 
-            for i, infil in enumerate([inf_flush_, inf_gr4j_, inf_pc_,
+            for i, infil in enumerate([inf_flush_, inf_pc_,  # inf_gr4j_,
                                        inf_hbv_, inf_vicarno_, inf_hmets_]):
                 all_infil_placeholder[t, :, :, i] = infil
 
-            for i, baseflow1 in enumerate([baseflow1_noflow_, baseflow1_gr4j_,
+            for i, baseflow1 in enumerate([baseflow1_noflow_,  # baseflow1_gr4j_,
                                            baseflow1_power_, baseflow1_vic_,
                                            baseflow1_topmodel_, baseflow1_threshold_]):
                 all_baseflow1_placeholder[t, :, :, i] = baseflow1
 
             for i, baseflow2 in enumerate([baseflow2_noflow_, baseflow2_const_,
-                                           baseflow2_gr4j_, baseflow2_lin_,
+                                           baseflow2_lin_,  # baseflow2_gr4j_,
                                            baseflow2_pl_, baseflow2_vic_]):
                 all_baseflow2_placeholder[t, :, :, i] = baseflow2
 

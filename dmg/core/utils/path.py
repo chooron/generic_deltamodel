@@ -382,7 +382,10 @@ class PathBuilder(BaseModel):
             warmup = 'WU'
 
         # Set hiddensize for single or multi-NN setups.
-        if config['delta_model']['nn_model']['model'] == 'LstmMlpModel':
+        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel']:
+            hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
+                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
+        elif config['delta_model']['nn_model']['model'].startswith('DualAttnLstmV'):
             hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
                             f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
         else:

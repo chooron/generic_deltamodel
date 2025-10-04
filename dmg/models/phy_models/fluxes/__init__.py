@@ -1,5 +1,3 @@
-from dataclasses import field
-
 import torch
 
 
@@ -101,7 +99,8 @@ def infiltration_vic_arno(available_water: torch.Tensor, soil_moisture: torch.Te
     :return: 入渗量。
     """
     # 入渗发生在非饱和区域。
-    infiltration = available_water * (1.0 - torch.pow(1.0 - soil_moisture / max_soil_moisture, bexp))
+    infiltration = available_water * (
+            1.0 - torch.pow((torch.clamp(1.0 - soil_moisture / max_soil_moisture, min=1e-6)), bexp))
     return infiltration
 
 
@@ -162,38 +161,46 @@ def baseflow_constant_rate(storage: torch.Tensor, bfmax: torch.Tensor) -> torch.
     return torch.minimum(bfmax, storage)
 
 
-def baseflow_linear(storage: torch.Tensor, bfk: float) -> torch.Tensor:
+def baseflow_linear(storage: torch.Tensor, bfk: torch.Tensor, bfmax: torch.Tensor) -> torch.Tensor:
     """
     线性水库基流 (Linear Baseflow)。
     :param storage: 储水层水量。
     :param bfk: 线性退水系数 [1/d]。
+    :param bfmax: 线性退水系数 [1/d]。
     :return: 基流量。
     """
-    return (10 ** bfk) * storage
+    return torch.minimum(bfmax, ((10 ** bfk) * storage))
 
 
-def baseflow_gr4j_exchange(storage: torch.Tensor, gr4j_x3: torch.Tensor) -> torch.Tensor:
+def baseflow_exp(storage: torch.Tensor, max_storage: torch.Tensor, bfmax: torch.Tensor, bfexp: torch.Tensor):
+    return torch.minimum(storage, bfmax * torch.exp(bfexp * torch.clamp(storage / max_storage, 0, 1) - 1))
+
+
+def baseflow_gr4j_exchange(storage: torch.Tensor, gr4j_x3: torch.Tensor, bfmax: torch.Tensor) -> torch.Tensor:
     """
     模拟GR4J的汇流交换项 (GR4J Method)。这不是一个典型的基流函数。
     :param storage: 汇流层储水量。
     :param gr4j_x3: 交换系数 (X3-1) [mm]。
+    :param bfmax: 交换系数 (X3-1) [mm]。
     :return: 交换水量 (正为增益，负为损失)。
     """
     # 该项描述的是与外部的交换，而非单纯的基流产出。
     # 计算基于储水量的四次方关系。
-    return storage * torch.clamp(
-        (1 - torch.pow(1 + (storage / gr4j_x3) ** 4, -1 / 4)), min=0.0)
+    return torch.minimum(bfmax, storage * torch.clamp(
+        (1 - torch.pow(1 + torch.clamp(storage / gr4j_x3, min=1e-6) ** 4, -1 / 4)), min=0.0, max=1.0))
 
 
-def baseflow_power_law(storage: torch.Tensor, bfc: torch.Tensor, bfn: torch.Tensor) -> torch.Tensor:
+def baseflow_power_law(storage: torch.Tensor, bfc: torch.Tensor, bfn: torch.Tensor,
+                       bfmax: torch.Tensor) -> torch.Tensor:
     """
     幂律形式的基流计算 (Power Law Baseflow)。
     :param storage: 储水层水量。
     :param bfc: 基流系数 [1/d]。
     :param bfn: 基流指数 [-]。
+    :param bfmax: 基流指数 [-]。
     :return: 基流量。
     """
-    return torch.minimum((10 ** bfc) * torch.pow(storage, bfn), storage)  # 确保基流不超过储水量
+    return torch.minimum(bfmax, torch.minimum((10 ** (bfc)) * torch.pow(storage, bfn), storage))  # 确保基流不超过储水量
 
 
 def baseflow_vic(storage: torch.Tensor, max_storage: torch.Tensor,
@@ -223,7 +230,7 @@ def baseflow_topmodel(storage: torch.Tensor, max_storage: torch.Tensor,
     """
     # 基流随饱和水亏指数衰减。
     return torch.minimum(
-        bfmax * torch.clamp(max_storage / (bfn * torch.pow(bflambda * max_storage, bfn)), min=1e-6, max=1.0) *
+        bfmax * torch.clamp(max_storage / (bfn * torch.pow(bflambda, bfn)), min=1e-6, max=1.0) *
         torch.pow(storage / max_storage, bfn), storage)
 
 
@@ -238,7 +245,9 @@ def baseflow_threshold(storage: torch.Tensor, max_storage: torch.Tensor,
     :param bfthresh: 产流阈值比例 [0, 1]。
     :return: 基流量。
     """
-    return torch.pow(torch.clamp(storage / max_storage - bfthresh, min=1e-6) / (1 - bfthresh), bfn) * bfmax
+    return torch.minimum(
+        torch.pow(torch.clamp(storage / max_storage - bfthresh, min=1e-6) / (1 - bfthresh), bfn) * bfmax, storage
+    )
 
 
 # ----------------------------------------------------------------------------

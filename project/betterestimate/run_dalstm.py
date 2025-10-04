@@ -1,16 +1,13 @@
-import os
 import sys
 
-from dmg.core.data import load_json
-
-sys.path.append(r'E:\PaperCode\generic_deltamodel')
-from dmg import ModelHandler
-from dmg.core.utils import import_data_loader, import_trainer, print_config, set_randomseed
-from example import load_config
+sys.path.append(r'E:\PaperCode\dpl-project\generic_deltamodel')
+from generic_deltamodel.project.betterestimate import load_config
+from generic_deltamodel.dmg import ModelHandler
+from generic_deltamodel.dmg.core.utils import import_data_loader, import_trainer, set_randomseed
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = '../example/conf/config_dblendv3.yaml'
+CONFIG_PATH = r'conf/config_dhbv_dalv3.yaml'
 #------------------------------------------#
 
 # model training
@@ -29,10 +26,11 @@ trainer = trainer_cls(
 )
 
 trainer.train()
-print(f'Training complete. Model saved to \n{config['model_path']}')
+print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation
 config['mode'] = 'test'
+config['test']['test_epoch'] = 100
 set_randomseed(config['random_seed'])
 
 model = ModelHandler(config, verbose=True)
@@ -49,4 +47,4 @@ trainer = trainer_cls(
 
 print('Evaluating model...')
 trainer.evaluate()
-print(f'Metrics and predictions saved to \n{config['out_path']}')
+print(f"Metrics and predictions saved to \n{config['out_path']}")
