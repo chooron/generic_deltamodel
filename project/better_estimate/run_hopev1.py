@@ -1,19 +1,18 @@
 import sys
 
 sys.path.append(r'E:\PaperCode\dpl-project\generic_deltamodel')
-from project.dual_attn_bilstm import load_config
+from project.better_estimate import load_config
 from dmg import ModelHandler
 from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = r'conf/config_dhbv_dalv3.yaml'
+CONFIG_PATH = r'conf/config_dhbv_hopev1.yaml'
 #------------------------------------------#
 
 # model training
 config = load_config(CONFIG_PATH)
 config['mode'] = 'train'
-config['train']['start_epoch'] = 60
 set_randomseed(config['random_seed'])
 model = ModelHandler(config, verbose=True)
 data_loader_cls = import_data_loader(config['data_loader'])

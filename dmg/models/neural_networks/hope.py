@@ -12,6 +12,7 @@ if tuple(map(int, torch.__version__.split('.')[:2])) >= (1, 12):
 else:
     dropout_fn = nn.Dropout2d
 
+
 class DropoutNd(nn.Module):
     def __init__(self, p: float = 0.5, tie=True, transposed=True):
         """
@@ -23,20 +24,21 @@ class DropoutNd(nn.Module):
         self.p = p
         self.tie = tie
         self.transposed = transposed
-        self.binomial = torch.distributions.binomial.Binomial(probs=1-self.p)
+        self.binomial = torch.distributions.binomial.Binomial(probs=1 - self.p)
 
     def forward(self, X):
         """X: (batch, dim, lengths...)."""
         if self.training:
             if not self.transposed: X = rearrange(X, 'b ... d -> b d ...')
             # binomial = torch.distributions.binomial.Binomial(probs=1-self.p) # This is incredibly slow because of CPU -> GPU copying
-            mask_shape = X.shape[:2] + (1,)*(X.ndim-2) if self.tie else X.shape
+            mask_shape = X.shape[:2] + (1,) * (X.ndim - 2) if self.tie else X.shape
             # mask = self.binomial.sample(mask_shape)
-            mask = torch.rand(*mask_shape, device=X.device) < 1.-self.p
-            X = X * mask * (1.0/(1-self.p))
+            mask = torch.rand(*mask_shape, device=X.device) < 1. - self.p
+            X = X * mask * (1.0 / (1 - self.p))
             if not self.transposed: X = rearrange(X, 'b d ... -> b ... d')
             return X
         return X
+
 
 class S4DKernel(nn.Module):
     """Generate convolution kernel from diagonal SSM parameters."""
@@ -54,7 +56,7 @@ class S4DKernel(nn.Module):
         self.C = nn.Parameter(torch.view_as_real(C))
         self.register("log_dt", log_dt, 0, lr=lr)
 
-        print("S4D kernel: N = ", N, cfi, cfr)
+        # print("S4D kernel: N = ", N, cfi, cfr)
 
         log_A_real = torch.log(0.5 * torch.ones(H, N // 2)) * cfr
         A_imag = math.pi * repeat(torch.arange(N // 2), 'n -> h n', h=H) * cfi
@@ -105,7 +107,7 @@ class S4D(nn.Module):
         self.add_noise = add_noise
         self.mult_noise = mult_noise
 
-        print("s4d.py self.h, self.n: ", self.h, self.n)
+        # print("s4d.py self.h, self.n: ", self.h, self.n)
 
         self.D = nn.Parameter(torch.randn(self.h))
 
@@ -147,7 +149,8 @@ class S4D(nn.Module):
         if not self.transposed: y = y.transpose(-1, -2)
         return y, None  # Return a dummy state to satisfy this repo's interface, but this can be modified
 
-class HOPE(nn.Module):
+
+class Hope(nn.Module):
 
     def __init__(
             self,
@@ -170,6 +173,11 @@ class HOPE(nn.Module):
         self.s4_layers = nn.ModuleList()
         self.norms = nn.ModuleList()
         self.dropouts = nn.ModuleList()
+
+        if cfg is None:
+            cfg = {"lr_min": 0.001, "lr": 0.01, "lr_dt": 0.0, "min_dt": 0.001,
+                   "max_dt": 1, "wd": 0.0, "d_state": 64, "cfr": 1.0, "cfi": 1.0}
+
         for _ in range(n_layers):
             self.s4_layers.append(
                 S4D(hidden_size, dropout=dropout, transposed=True,

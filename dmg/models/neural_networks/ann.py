@@ -30,10 +30,10 @@ class AnnModel(torch.nn.Module):
         super().__init__()
         self.name = 'AnnModel'
         self.hidden_size = hidden_size
-        self.i2h = Linear(nx, hidden_size)
+        self.i2h = Linear(nx, hidden_size, bias=True)
         self.h2h1 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2h2 = Linear(hidden_size, hidden_size, bias=True)
-        self.h2o = Linear(hidden_size, ny)
+        # self.h2h2 = Linear(hidden_size, hidden_size, bias=True)
+        self.h2o = Linear(hidden_size, ny, bias=True)
         self.dropout = Dropout(dr)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -55,10 +55,10 @@ class AnnModel(torch.nn.Module):
         ht1 = F.relu(self.h2h1(ht))
         ht1 = self.dropout(ht1)
 
-        ht2 = F.relu(self.h2h2(ht1))
-        ht2 = self.dropout(ht2)
+        # ht2 = F.relu(self.h2h2(ht1))
+        # ht2 = self.dropout(ht2)
 
-        return self.h2o(ht2)
+        return self.h2o(ht1)
 
 
 class AnnCloseModel(torch.nn.Module):

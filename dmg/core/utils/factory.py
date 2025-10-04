@@ -226,6 +226,13 @@ def load_nn_model(
 
     nx = n_forcings + n_attributes
 
+    # update config
+    config['nn_model']['nx1'] = nx
+    config['nn_model']['ny1'] = phy_model.learnable_param_count1
+    config['nn_model']['nx2'] = n_attributes
+    config['nn_model']['ny2'] = phy_model.learnable_param_count2
+    config['nn_model']['device'] = device
+
     # Dynamically retrieve the model
     cls = load_component(
         name,
@@ -277,6 +284,10 @@ def load_nn_model(
             mlp_dr=config['nn_model']['mlp_dropout'],
             lstm_dr=config['nn_model']['lstm_dropout'],
             hru_num=config['phy_model']['nmul'],
+        )
+    elif name in ["HopeMlpV1"]:
+        model = cls.build_by_config(
+            config
         )
     else:
         raise ValueError(f"Model {name} is not supported.")

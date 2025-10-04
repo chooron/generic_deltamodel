@@ -84,7 +84,5 @@ class LstmMlpModel(torch.nn.Module):
             The LSTM and MLP output tensors.
         """
         lstm_out = self.lstminv(z1)  # dim: timesteps, gages, params
-
         ann_out = self.ann(z2)
-
         return lstm_out, ann_out

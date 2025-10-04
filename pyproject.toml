@@ -1,5 +1,5 @@
 [project]
-name = "dpl-project"
+name = "generic_deltamodel"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -29,6 +29,7 @@ dependencies = [
     "einops>=0.8.1",
     "cartopy>=0.25.0",
     "geopandas>=1.1.1",
+    "pytest>=8.4.2",
 ]
 
 [project.optional-dependencies]
