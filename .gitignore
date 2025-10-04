@@ -183,6 +183,7 @@ validation/
 !tune/
 
 data
+!dmg/core/data
 paper
 
 实验设计.md
