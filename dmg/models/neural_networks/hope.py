@@ -230,7 +230,7 @@ class Hope(nn.Module):
         x = x.transpose(-1, -2)
 
         # Pooling: average pooling over the sequence length
-        x = x.mean(dim=1)
+        # x = x.mean(dim=1)
 
         # Decode the outputs
         x = self.decoder(x)  # (B, d_model) -> (B, d_output)

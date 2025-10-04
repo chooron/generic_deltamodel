@@ -1,6 +1,7 @@
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 
 from dmg.models.neural_networks.ann import AnnModel
 from dmg.models.neural_networks.hope import Hope
@@ -65,5 +66,7 @@ class HopeMlpV1(torch.nn.Module):
         """
         hope_out = self.hope_layer(z1)  # dim: timesteps, gages, params
         ann_out = self.ann(z2)
-        print(hope_out.shape, ann_out.shape)
+        hope_out = F.sigmoid(hope_out)
+        ann_out = F.sigmoid(ann_out)
+        # print(hope_out.shape, ann_out.shape)
         return hope_out, ann_out
