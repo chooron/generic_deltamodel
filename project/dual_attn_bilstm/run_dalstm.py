@@ -1,9 +1,9 @@
 import sys
 
 sys.path.append(r'E:\PaperCode\dpl-project\generic_deltamodel')
-from generic_deltamodel.project.betterestimate import load_config
-from generic_deltamodel.dmg import ModelHandler
-from generic_deltamodel.dmg.core.utils import import_data_loader, import_trainer, set_randomseed
+from project.betterestimate import load_config
+from dmg import ModelHandler
+from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
 
 #------------------------------------------#
 # Define model settings here.

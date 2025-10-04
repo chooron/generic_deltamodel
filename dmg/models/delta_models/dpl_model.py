@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 import torch.nn
 
-from generic_deltamodel.dmg.core.utils.factory import import_phy_model, load_nn_model
+from dmg.core.utils.factory import import_phy_model, load_nn_model
 
 
 class DplModel(torch.nn.Module):

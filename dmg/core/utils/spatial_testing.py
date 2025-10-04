@@ -7,8 +7,8 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from generic_deltamodel.dmg.core.calc.metrics import Metrics
-from generic_deltamodel.dmg.core.utils.factory import import_data_loader, import_trainer
+from dmg.core.calc.metrics import Metrics
+from dmg.core.utils.factory import import_data_loader, import_trainer
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def run_spatial_testing(config: DictConfig, model) -> None:
         
         # Reinitialize model for each holdout to prevent data leakage
         if 'train' in config['mode']:
-            from generic_deltamodel.dmg.models.model_handler import ModelHandler as dModel
+            from dmg.models.model_handler import ModelHandler as dModel
             holdout_model = dModel(current_config, verbose=True)
         else:
             holdout_model = model

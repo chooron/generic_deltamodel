@@ -12,8 +12,8 @@ from pydantic import ValidationError
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from generic_deltamodel.dmg.core.utils.dates import Dates
-from generic_deltamodel.dmg.core.utils.path import PathBuilder
+from dmg.core.utils.dates import Dates
+from dmg.core.utils.path import PathBuilder
 
 log = logging.getLogger(__name__)
 

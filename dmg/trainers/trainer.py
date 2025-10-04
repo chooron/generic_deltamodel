@@ -8,12 +8,12 @@ import torch
 import tqdm
 from numpy.typing import NDArray
 
-from generic_deltamodel.dmg.core.calc.metrics import Metrics
-from generic_deltamodel.dmg.core.data import create_training_grid
-from generic_deltamodel.dmg.core.utils.factory import import_data_sampler, load_criterion
-from generic_deltamodel.dmg.core.utils.utils import save_outputs, save_train_state
-from generic_deltamodel.dmg.models.model_handler import ModelHandler
-from generic_deltamodel.dmg.trainers.base import BaseTrainer
+from dmg.core.calc.metrics import Metrics
+from dmg.core.data import create_training_grid
+from dmg.core.utils.factory import import_data_sampler, load_criterion
+from dmg.core.utils.utils import save_outputs, save_train_state
+from dmg.models.model_handler import ModelHandler
+from dmg.trainers.base import BaseTrainer
 
 log = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from typing import Any, Optional
 import torch
 from numpy.typing import NDArray
 
-from generic_deltamodel.dmg.core.utils.utils import camel_to_snake
+from dmg.core.utils.utils import camel_to_snake
 
 sys.path.append('../dmg/')  # for tutorials
 
@@ -108,7 +108,7 @@ def import_phy_model(model: str, ver_name: str = None) -> type:
 
 def import_data_loader(name: str) -> type:
     """Loads a data loader dynamically."""
-    from generic_deltamodel.dmg.core.data.loaders.base import BaseLoader
+    from dmg.core.data.loaders.base import BaseLoader
     return load_component(
         name,
         loader_dir,
@@ -118,7 +118,7 @@ def import_data_loader(name: str) -> type:
 
 def import_data_sampler(name: str) -> type:
     """Loads a data sampler dynamically."""
-    from generic_deltamodel.dmg.core.data.samplers.base import BaseSampler
+    from dmg.core.data.samplers.base import BaseSampler
     return load_component(
         name,
         sampler_dir,
@@ -128,7 +128,7 @@ def import_data_sampler(name: str) -> type:
 
 def import_trainer(name: str) -> type:
     """Loads a trainer dynamically."""
-    from generic_deltamodel.dmg.trainers.base import BaseTrainer
+    from dmg.trainers.base import BaseTrainer
     return load_component(
         name,
         trainer_dir,

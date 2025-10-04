@@ -8,7 +8,7 @@ from torchmetrics import R2Score, MeanSquaredError  # 导入R2Score
 import sys
 
 sys.path.append(r"E:\PaperCode\dpl-project\generic_deltamodel")
-from generic_deltamodel.dmg.models.neural_networks.hope import HOPE
+from dmg.models.neural_networks.hope import HOPE
 import numpy as np
 import os
 

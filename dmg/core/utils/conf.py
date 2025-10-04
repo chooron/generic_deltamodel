@@ -6,7 +6,7 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from generic_deltamodel.dmg.core.utils import initialize_config
+from dmg.core.utils import initialize_config
 
 log = logging.getLogger(__name__)
 

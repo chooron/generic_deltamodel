@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Parameter
 
-from generic_deltamodel.dmg.core.calc.dropout import DropMask, createMask
+from dmg.core.calc.dropout import DropMask, createMask
 
 #------------------------------------------#
 # NOTE: Suppress this warning until we can implement a proper pytorch nn.LSTM.

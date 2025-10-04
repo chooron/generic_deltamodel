@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 import torchrecurrent
 
-from generic_deltamodel.dmg.models.neural_networks import AnnModel
+from dmg.models.neural_networks import AnnModel
 
 
 class AnyRnnMlp(torch.nn.Module):

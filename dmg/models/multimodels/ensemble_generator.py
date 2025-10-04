@@ -2,8 +2,8 @@ from typing import Any, Optional
 
 import torch
 
-from generic_deltamodel.dmg.core.utils.factory import load_nn_model
-from generic_deltamodel.dmg.core.utils.utils import find_shared_keys
+from dmg.core.utils.factory import load_nn_model
+from dmg.core.utils.utils import find_shared_keys
 
 
 class EnsembleGenerator(torch.nn.Module):

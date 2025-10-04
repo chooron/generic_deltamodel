@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn import Parameter
 
-from generic_deltamodel.dmg.core.calc.dropout import DropMask, createMask
+from dmg.core.calc.dropout import DropMask, createMask
 
 
 class Lstm(torch.nn.Module):
