@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from dmg.models.neural_networks.ann import AnnModel
 from dmg.models.neural_networks.hope import Hope
 
+
 class HopeMlpV1(torch.nn.Module):
 
     def __init__(
@@ -64,9 +65,9 @@ class HopeMlpV1(torch.nn.Module):
         tuple
             The LSTM and MLP output tensors.
         """
-        hope_out = self.hope_layer(z1)  # dim: timesteps, gages, params
+        hope_out = self.hope_layer(torch.permute(z1, (1, 0, 2)))  # dim: timesteps, gages, params
         ann_out = self.ann(z2)
         hope_out = F.sigmoid(hope_out)
         ann_out = F.sigmoid(ann_out)
         # print(hope_out.shape, ann_out.shape)
-        return hope_out, ann_out
+        return torch.permute(hope_out, (1, 0, 2)), ann_out
