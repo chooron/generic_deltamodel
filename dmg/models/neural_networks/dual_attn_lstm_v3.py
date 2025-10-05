@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from dmg.models.neural_networks.lstm import LstmModel
 
 # --- 1. 静态特征注意力 ---
 class StaticFeatureAttention(nn.Module):
@@ -28,15 +28,15 @@ class SelfAttentionWeight(nn.Module):
         # 自注意力层
         # embed_dim 必须等于 feature_dim
         # num_heads 是超参数，例如 2 或 4
-        self.self_attention = nn.MultiheadAttention(embed_dim=self.feature_dim, num_heads=4, batch_first=True)
+        self.self_attention = nn.MultiheadAttention(embed_dim=self.feature_dim, num_heads=1, batch_first=True)
 
         # 用于稳定性的层归一化和前馈网络 (这是Transformer的标准结构)
         self.norm1 = nn.LayerNorm(self.feature_dim)
         self.norm2 = nn.LayerNorm(self.feature_dim)
         self.ffn = nn.Sequential(
-            nn.Linear(self.feature_dim, self.feature_dim * 2),
+            nn.Linear(self.feature_dim, self.feature_dim * 4),
             nn.ReLU(),
-            nn.Linear(self.feature_dim * 2, self.feature_dim)
+            nn.Linear(self.feature_dim * 4, self.feature_dim)
         )
 
         # 最终的评分MLP
@@ -96,14 +96,20 @@ class DualAttnLstmV3(nn.Module):
         super().__init__()
         self.hru_num = hru_num
         self.static_att = StaticFeatureAttention(static_dim)
-        self.lstm = nn.LSTM(input_size=seq_input_dim + static_dim,
-                            hidden_size=lstm_hidden_dim,
-                            batch_first=True,
-                            dropout=lstm_dr,
-                            bidirectional=False)
-        self.lstm_fc = nn.Sequential(
-            nn.Linear(lstm_hidden_dim, lstm_out_dim),
-            nn.Sigmoid()
+        # self.lstm = nn.LSTM(input_size=seq_input_dim + static_dim,
+        #                     hidden_size=lstm_hidden_dim,
+        #                     batch_first=True,
+        #                     dropout=lstm_dr,
+        #                     bidirectional=False)
+        # self.lstm_fc = nn.Sequential(
+        #     nn.Linear(lstm_hidden_dim, lstm_out_dim),
+        #     nn.Sigmoid()
+        # )
+        self.lstm_model = LstmModel(
+            nx=seq_input_dim + static_dim,
+            ny=lstm_out_dim,
+            hidden_size=lstm_hidden_dim,
+            dr=lstm_dr,
         )
         self.mlp = nn.Sequential(
             nn.Linear(static_dim, mlp_hidden_dim, bias=True),
@@ -130,8 +136,8 @@ class DualAttnLstmV3(nn.Module):
         x_seq_aug = torch.cat([x_seq, x_static_att.unsqueeze(0).repeat(x_seq.size(0), 1, 1)], dim=-1)
 
         # 2) LSTM
-        h, _ = self.lstm(x_seq_aug)  # (B, T, hidden)
-        dynamic_params = self.lstm_fc(h).view(B, N, self.hru_num, -1)
+        # h, _ = self.lstm_model(x_seq_aug)  # (B, T, hidden)
+        dynamic_params = self.lstm_model(x_seq_aug).view(B, N, self.hru_num, -1)
 
         # 3) 时序特征 attention
         att_out = self.feature_att(dynamic_params, static_params)  # (B, T, out_dim)
