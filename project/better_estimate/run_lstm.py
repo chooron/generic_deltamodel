@@ -7,12 +7,12 @@ from project.better_estimate import load_config
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = r'conf/config_dhbv_hopev1.yaml'
+CONFIG_PATH = r'conf/config_dhbv_lstm.yaml'
 #------------------------------------------#
 # model training
 config = load_config(CONFIG_PATH)
 config['mode'] = 'train'
-# config['train']['start_epoch'] = 55
+config['train']['start_epoch'] = 95
 set_randomseed(config['random_seed'])
 model = ModelHandler(config, verbose=True)
 data_loader_cls = import_data_loader(config['data_loader'])
