@@ -202,7 +202,7 @@ class CudnnLstmModel(torch.nn.Module):
         self.lstm = CudnnLstm(nx=hidden_size, hidden_size=hidden_size, dr=dr)
         self.linear_out = torch.nn.Linear(hidden_size, ny)
 
-        # self.activation_sigmoid = torch.nn.Sigmoid()
+        self.activation_sigmoid = torch.nn.Sigmoid()
 
     def forward(
         self,
@@ -227,4 +227,4 @@ class CudnnLstmModel(torch.nn.Module):
             do_drop_mc=do_drop_mc,
             dr_false=dr_false,
         )
-        return self.linear_out(lstm_out)
+        return self.activation_sigmoid(self.linear_out(lstm_out))

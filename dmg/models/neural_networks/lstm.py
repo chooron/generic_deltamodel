@@ -49,10 +49,10 @@ class Lstm(torch.nn.Module):
             bidirectional=False,
         )
         # Remove default parameters. These are manually assigned in forward().
-        delattr(self.lstm, 'weight_ih_l0')
-        delattr(self.lstm, 'weight_hh_l0')
-        delattr(self.lstm, 'bias_ih_l0')
-        delattr(self.lstm, 'bias_hh_l0')
+        # delattr(self.lstm, 'weight_ih_l0')
+        # delattr(self.lstm, 'weight_hh_l0')
+        # delattr(self.lstm, 'bias_ih_l0')
+        # delattr(self.lstm, 'bias_hh_l0')
 
         # Name parameters to match CudannLstm.
         self.w_ih = Parameter(torch.Tensor(hidden_size * 4, nx))
