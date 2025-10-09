@@ -261,7 +261,7 @@ def load_nn_model(
             hidden_size=config['nn_model']['hidden_size'],
             dr=config['nn_model']['dropout'],
         )
-    elif name in ['LstmMlpModel']:
+    elif name in ['LstmMlpModel', 'GruMlpModel']:
         model = cls(
             nx1=nx,
             ny1=phy_model.learnable_param_count1,

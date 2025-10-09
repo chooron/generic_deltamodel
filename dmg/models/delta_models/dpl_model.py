@@ -113,7 +113,7 @@ class DplModel(torch.nn.Module):
             The output predictions.
         """
         # Neural network
-        if type(self.nn_model).__name__ in ['LstmMlpModel', "AttentionLstm", "HopeMlpV1"]:
+        if type(self.nn_model).__name__ in ['LstmMlpModel','GruMlpModel', "AttentionLstm", "HopeMlpV1"]:
             parameters = self.nn_model(data_dict['xc_nn_norm'], data_dict['c_nn_norm'])
         elif type(self.nn_model).__name__.startswith('DualAttnLstmV'):
             parameters = self.nn_model(data_dict['x_nn_norm'], data_dict['c_nn_norm'])
