@@ -391,6 +391,9 @@ class PathBuilder(BaseModel):
         elif config['delta_model']['nn_model']['model'].startswith('HopeMlp'):
             hidden_size = f"{config['delta_model']['nn_model']['hope_hidden_size']}" \
                             f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
+        elif config['delta_model']['nn_model']['model'] in ["VanillaTransformerMlpModel"]:
+            hidden_size = f"{config['delta_model']['nn_model']['transformer_d_model']}" \
+                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
         else:
             hidden_size = config['delta_model']['nn_model']['hidden_size']
 

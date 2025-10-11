@@ -31,7 +31,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class SimpleTransformer(nn.Module):
+class VanillaTransformer(nn.Module):
     """
     一个简化的、独立的 Transformer 模型，用于时间序列预测。
     该实现提取了您提供的代码的核心逻辑，并移除了 neuralhydrology 的依赖。
@@ -52,7 +52,7 @@ class SimpleTransformer(nn.Module):
             pred_len (int): 预测序列的长度。
             seq_len (int): 输入序列的最大长度，用于位置编码。
         """
-        super(SimpleTransformer, self).__init__()
+        super(VanillaTransformer, self).__init__()
         self.d_model = d_model
         self.output_dim = output_dim
 
@@ -118,13 +118,8 @@ class SimpleTransformer(nn.Module):
 
         # 4. 通过 Transformer 编码器
         encoder_output = self.transformer_encoder(pos_encoded_src, mask)
-        # encoder_output shape: (batch_size, seq_len, d_model)
-
-        # 5. 只使用编码器最后一个时间步的输出进行预测
-        last_step_output = encoder_output[:, -1, :]  # Shape: (batch_size, d_model)
-
         # 6. 通过输出层得到最终预测
-        prediction = self.output_layer(self.output_dropout(last_step_output))
+        prediction = self.output_layer(self.output_dropout(encoder_output))
         # prediction shape: (batch_size, output_dim * pred_len)
         return prediction
 
@@ -141,7 +136,7 @@ if __name__ == '__main__':
     seq_len = 60  # 输入序列长度
 
     # --- 实例化模型 ---
-    model = SimpleTransformer(
+    model = VanillaTransformer(
         input_dim=input_dim,
         d_model=d_model,
         nhead=nhead,
@@ -173,6 +168,6 @@ if __name__ == '__main__':
     print(f"预期输出形状: ({batch_size}, {output_dim})")
 
     # 验证输出形状是否正确
-    assert prediction.shape == (batch_size, output_dim)
+    assert prediction.shape == (batch_size, seq_len, output_dim)
 
     print("\n模型结构和维度检查通过！")

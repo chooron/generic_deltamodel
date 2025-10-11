@@ -285,6 +285,21 @@ def load_nn_model(
             lstm_dr=config['nn_model']['lstm_dropout'],
             hru_num=config['phy_model']['nmul'],
         )
+    elif name in ["VanillaTransformerMlpModel"]:
+        model = cls(
+            nx1=nx,
+            ny1=phy_model.learnable_param_count1,
+            hiddeninv1=config['nn_model']['transformer_d_model'],
+            nx2=n_attributes,
+            ny2=phy_model.learnable_param_count2,
+            hiddeninv2=config['nn_model']['mlp_hidden_size'],
+            dr1=config['nn_model']['transformer_dropout'],
+            dr2=config['nn_model']['mlp_dropout'],
+            nhead=config['nn_model']['transformer_nhead'],
+            num_encoder_layers=config['nn_model']['transformer_encoder_layers'],
+            transformer_dim_fc=config['nn_model']['transformer_dim_fc'],
+            device=device,
+        )
     elif name in ["HopeMlpV1"]:
         model = cls.build_by_config(
             config
