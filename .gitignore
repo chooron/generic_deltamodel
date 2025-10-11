@@ -190,3 +190,5 @@ paper
 LOG.md
 
 logs
+
+*.ckpt

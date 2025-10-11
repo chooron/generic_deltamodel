@@ -223,7 +223,7 @@ class TimeSeriesTransformer(nn.Module):
 
         # 6. 通过输出层得到最终预测
         # (batch_size, seq_len, output_dim)
-        output = self.output_layer(encoder_output)
+        output = self.output_layer(encoder_output[:, -1, :])
 
         return output
 
