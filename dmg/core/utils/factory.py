@@ -273,7 +273,7 @@ def load_nn_model(
             dr2=config['nn_model']['mlp_dropout'],
             device=device,
         )
-    elif name in ["DualAttnLstmV1", "DualAttnLstmV2", "DualAttnLstmV3"]:
+    elif name in ["DualAttnLstmV1", "DualAttnLstmV2", "DualAttnLstmV3", "DualAttnLstmV4", "DualAttnLstmV5"]:
         model = cls(
             seq_input_dim=n_forcings,
             static_dim=n_attributes,

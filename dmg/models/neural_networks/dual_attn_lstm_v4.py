@@ -77,7 +77,7 @@ class StaticGatedAttention(nn.Module):
         return attention_weights
 
 
-class DualAttnLstmV3(nn.Module):
+class DualAttnLstmV4(nn.Module):
     """
     在LSTM前后加入注意力机制，
     第一个注意力机制是特征提取的，
