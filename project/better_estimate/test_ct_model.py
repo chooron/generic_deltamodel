@@ -9,6 +9,7 @@ import sys
 
 sys.path.append(r"E:\PaperCode\dpl-project\generic_deltamodel")
 from dmg.models.neural_networks.cnn_transformer import TimeSeriesTransformer
+# from dmg.models.neural_networks.simple_transformer import SimpleTransformer
 import numpy as np
 import os
 
@@ -143,7 +144,7 @@ class LitRNN(pl.LightningModule):
 
     def __init__(self, input_size, d_model=64, nhead=8,
                  num_encoder_layers=2, dim_feedforward=256,
-                 conv_kernel_size=5, output_dim=1,
+                 conv_kernel_size=5, output_dim=1,seq_len=365,
                  learning_rate=1e-3, weight_decay=1e-4):
         super().__init__()
         self.save_hyperparameters()
@@ -154,8 +155,8 @@ class LitRNN(pl.LightningModule):
             nhead=nhead,
             num_encoder_layers=num_encoder_layers,
             dim_feedforward=dim_feedforward,
-            conv_kernel_size=conv_kernel_size,
-            output_dim=output_dim
+            output_dim=output_dim,
+            # seq_len=seq_len
         )
         # 使用自定义的 R2Loss 作为损失函数
         self.loss_fn = MeanSquaredError()
@@ -207,7 +208,7 @@ if __name__ == '__main__':
     LAG = 365
     BATCH_SIZE = 256
     # LSTM 0.7
-    LEARNING_RATE = 1e-2
+    LEARNING_RATE =5e-3
     WEIGHT_DECAY = 1e-4
     MAX_EPOCHS = 100
     PATIENCE = 50
@@ -226,11 +227,11 @@ if __name__ == '__main__':
     # --- 2. 初始化模型 ---
     lit_model = LitRNN(
         input_size=INPUT_SIZE,
-        d_model=128,  # 模型内部的特征维度
-        nhead=8,  # 多头注意力的头数
-        num_encoder_layers=4,  # Transformer编码器的层数
-        dim_feedforward=256,  # 前馈网络的隐藏层维度
-        conv_kernel_size=5,  # 因果卷积的核大小
+        d_model=64,  # 模型内部的特征维度
+        nhead=4,  # 多头注意力的头数
+        num_encoder_layers=2,  # Transformer编码器的层数
+        dim_feedforward=128,  # 前馈网络的隐藏层维度
+        conv_kernel_size=3,  # 因果卷积的核大小
         output_dim=1,  # 预测目标维度 (例如，预测未来1个值)
         learning_rate=LEARNING_RATE,
         weight_decay=WEIGHT_DECAY

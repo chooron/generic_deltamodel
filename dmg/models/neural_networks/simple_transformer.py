@@ -54,7 +54,6 @@ class SimpleTransformer(nn.Module):
         """
         super(SimpleTransformer, self).__init__()
         self.d_model = d_model
-        self.pred_len = pred_len
         self.output_dim = output_dim
 
         # 1. 输入嵌入层
