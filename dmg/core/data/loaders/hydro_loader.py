@@ -9,7 +9,8 @@ import pandas as pd
 import torch
 from numpy.typing import NDArray
 from sklearn.exceptions import DataDimensionalityWarning
-
+from dotenv import load_dotenv
+load_dotenv()
 from dmg.core.data.data import intersect, split_dataset_by_basin
 from dmg.core.data.loaders.base import BaseLoader
 
@@ -162,9 +163,10 @@ class HydroLoader(BaseLoader):
             Tuple of neural network + physics model inputes, and target data.
         """
         try:
-            if self.config['observations']['data_path']:
-                data_path = self.config['observations']['data_path']
-            
+            # if self.config['observations']['data_path']:
+            #     data_path = self.config['observations']['data_path']
+            data_path = os.getenv("DATA_PATH")
+
             if scope == 'train':
                 if not data_path:
                     # NOTE: still including 'train_path' etc. for backwards
@@ -236,23 +238,23 @@ class HydroLoader(BaseLoader):
         x_nn = forcings[:,:, nn_forc_idx]
         c_nn = attributes[:, nn_attr_idx]
         target = np.transpose(target[:, idx_start:idx_end], (1,0,2))
-
+        gage_info = np.load(os.getenv("GAGE_INFO"))
         # Subset basins if necessary
-        if 'subset_path' in self.config['observations']:
-            subset_path = self.config['observations']['subset_path']
-            gage_id_path = self.config['observations']['gage_info']
-
+        # todo 这里可能对671流域的预测有影响
+        if self.config['observations']['name'] == "camels_531":
+            subset_path = os.getenv("SUBSET_PATH")
             with open(subset_path) as f:
                 selected_basins = json.load(f)
-            gage_info = np.load(gage_id_path)
 
             subset_idx = intersect(selected_basins, gage_info)
+        else:
+            subset_idx = range(len(gage_info))
 
-            x_phy = x_phy[:, subset_idx, :]
-            c_phy = c_phy[subset_idx, :]
-            x_nn = x_nn[:, subset_idx, :]
-            c_nn = c_nn[subset_idx, :]
-            target = target[:, subset_idx, :]
+        x_phy = x_phy[:, subset_idx, :]
+        c_phy = c_phy[subset_idx, :]
+        x_nn = x_nn[:, subset_idx, :]
+        c_nn = c_nn[subset_idx, :]
+        target = target[:, subset_idx, :]
 
         # Convert flow to mm/day if necessary
         target = self._flow_conversion(c_nn, target)

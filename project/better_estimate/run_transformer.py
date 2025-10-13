@@ -1,6 +1,9 @@
+from dotenv import load_dotenv
+load_dotenv()
 import sys
+import os
 
-sys.path.append(r'E:\pycode\generic_deltamodel')
+sys.path.append(os.getenv("PROJ_PATH"))
 from dmg import ModelHandler
 from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
 from project.better_estimate import load_config
@@ -24,7 +27,7 @@ trainer = trainer_cls(
     verbose=True
 )
 
-trainer.train()
+# trainer.train()
 print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation

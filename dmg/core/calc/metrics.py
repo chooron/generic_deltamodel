@@ -65,7 +65,6 @@ class Metrics(BaseModel):
             pred = np.expand_dims(pred, axis=0)
         if target.ndim == 1:
             target = np.expand_dims(target, axis=0)
-
         super().__init__(pred=pred, target=target)
 
     def model_post_init(self, __context: Any) -> Any:

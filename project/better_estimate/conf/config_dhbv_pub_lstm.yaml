@@ -12,9 +12,9 @@
 defaults:
     - _self_
     - hydra: settings
-    - observations: camels_531 # camels_531, camels_671 
+    - observations: camels_671 # camels_531, camels_671
 
-
+observations: camels_671
 ## General -------------------------------#
 mode: train  # train, test, train_test, simulation
 random_seed: 42
@@ -22,8 +22,9 @@ device: cuda
 gpu_id: 0
 
 data_loader: HydroLoader
-data_sampler: HydroSampler
-trainer: Trainer
+data_sampler: PubSampler
+trainer: PubTrainer
+
 
 save_path: ./output
     # NOTE: The output path is relative to the current working directory. 
@@ -34,8 +35,8 @@ trained_model: ./output/model/  # Pretrained dHBV 1.1p can be downloaded from: h
 
 ## Training ------------------------------#
 train:
-    start_time: 1980/10/01
-    end_time: 1995/09/30
+    start_time: 1989/10/01
+    end_time: 1999/09/30
     target: [streamflow]
     optimizer: Adadelta
     batch_size: 100
@@ -46,12 +47,11 @@ train:
 
 ## Evaluation -------------------------------#
 test:
-    start_time: 1995/10/01
-    end_time: 2010/09/30
-    batch_size: 100
+    start_time: 1989/10/01
+    end_time: 1999/09/30
+    batch_size: 25
     test_epoch: 100
-    split_dataset: True
-
+    test_group_id: 0
 
 ## Inference -------------------------------#
 simulation:
@@ -96,7 +96,7 @@ delta_model:
         attributes: []
 
     nn_model:
-        model: GruMlpModel
+        model: LstmMlpModel
         mlp_dropout: 0.5
         lstm_dropout: 0.5
         lstm_hidden_size: 256

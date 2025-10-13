@@ -48,9 +48,9 @@ train:
 test:
     start_time: 1995/10/01
     end_time: 2010/09/30
-    batch_size: 25
+    batch_size: 100
     test_epoch: 100
-
+    split_dataset: True
 
 ## Inference -------------------------------#
 simulation:

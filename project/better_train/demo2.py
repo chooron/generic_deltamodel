@@ -5,23 +5,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 import pytorch_lightning as pl
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from pytorch_lightning.callbacks import RichProgressBar, EarlyStopping
-
-
-# --- 1. 准备虚拟数据 (与之前相同) ---
-def create_dummy_csv(filename="timeseries_data_long.csv"):
-    if os.path.exists(filename):
-        print(f"'{filename}' already exists. Skipping creation.")
-        return
-    print(f"Creating dummy CSV file: '{filename}'")
-    time = np.arange(0, 5000, 1)  # 生成更长的数据以适应分块
-    input_1 = np.sin(2 * np.pi * time / 365.25) + np.cos(2 * np.pi * time / 30.5)
-    input_2 = np.random.randn(len(time)) * 0.2
-    output = 0.8 * np.roll(input_1, 10) + input_2 ** 2 + 0.1 * np.random.randn(len(time))
-    df = pd.DataFrame({'input_1': input_1, 'input_2': input_2, 'output': output})
-    df.to_csv(filename, index=False)
-
 
 # --- 2. 全新的数据集定义 (核心改动) ---
 class WarmupForecastDataset(Dataset):
@@ -62,48 +47,83 @@ class WarmupForecastDataset(Dataset):
 # --- 3. LightningDataModule (适配新的Dataset) ---
 class WarmupForecastDataModule(pl.LightningDataModule):
     def __init__(self, csv_path, input_cols, target_col, warmup_len, forecast_len, batch_size=32):
+        """
+        Args:
+            csv_path (str): CSV文件路径.
+            input_cols (list): 输入特征的列名列表.
+            target_col (str): 目标变量的列名.
+            warmup_len (int): 用于预热的历史时间步长.
+            forecast_len (int): 预测未来的时间步长.
+            batch_size (int): 批处理大小.
+        """
         super().__init__()
-        self.csv_path = csv_path
-        self.input_cols = input_cols
-        self.target_col = target_col
-        self.warmup_len = warmup_len
-        self.forecast_len = forecast_len
-        self.batch_size = batch_size
-        self.scaler = MinMaxScaler()
+        # 保存所有初始化参数
+        self.save_hyperparameters()
+        self.scaler = StandardScaler()
+        # self.train_df, self.val_df, self.test_df 将在 setup 中定义
+        self.train_df = None
+        self.val_df = None
+        self.test_df = None
 
     def setup(self, stage=None):
-        df = pd.read_csv(self.csv_path)
-        all_cols = self.input_cols + ([self.target_col] if self.target_col not in self.input_cols else [])
+        # 1. 加载并预处理数据
+        df = pd.read_csv(self.hparams.csv_path)
+        # 将 'date' 列转换为 datetime 对象，并设为索引
+        df['date'] = pd.to_datetime(df['date'])
+        df.set_index('date', inplace=True)
 
-        train_size = int(len(df) * 0.7)
-        val_size = int(len(df) * 0.15)
-        self.train_df = df[:train_size]
-        self.val_df = df[train_size:train_size + val_size]
-        self.test_df = df[train_size + val_size:]
+        # 2. 按指定的日期范围划分数据
+        self.train_df = df.loc['1980-10-01':'1995-09-30'].copy()
+        self.val_df = df.loc['1995-10-01':'2000-09-30'].copy()
+        self.test_df = df.loc['2000-10-01':'2010-09-30'].copy()
 
+        # 使用 .copy() 避免 SettingWithCopyWarning
+
+        # 3. 数据标准化
+        # 准备所有需要标准化的列
+        all_cols = self.hparams.input_cols + (
+            [self.hparams.target_col] if self.hparams.target_col not in self.hparams.input_cols else [])
+
+        # 仅在训练集上拟合 StandardScaler
         self.scaler.fit(self.train_df[all_cols])
+
+        # 对所有数据集应用标准化
         self.train_df[all_cols] = self.scaler.transform(self.train_df[all_cols])
         self.val_df[all_cols] = self.scaler.transform(self.val_df[all_cols])
         self.test_df[all_cols] = self.scaler.transform(self.test_df[all_cols])
 
-        if stage == 'fit' or stage is None:
-            self.train_dataset = WarmupForecastDataset(self.train_df, self.input_cols, self.target_col, self.warmup_len,
-                                                       self.forecast_len)
-            self.val_dataset = WarmupForecastDataset(self.val_df, self.input_cols, self.target_col, self.warmup_len,
-                                                     self.forecast_len)
+        # 4. 根据 stage 创建对应的 Dataset
+        if stage in ('fit', None):
+            self.train_dataset = WarmupForecastDataset(self.train_df, self.hparams.input_cols, self.hparams.target_col,
+                                                       self.hparams.warmup_len,
+                                                       self.hparams.forecast_len)
+            self.val_dataset = WarmupForecastDataset(self.val_df, self.hparams.input_cols, self.hparams.target_col,
+                                                     self.hparams.warmup_len,
+                                                     self.hparams.forecast_len)
+        if stage in ('test', None):
+            self.test_dataset = WarmupForecastDataset(self.test_df, self.hparams.input_cols, self.hparams.target_col,
+                                                      self.hparams.warmup_len,
+                                                      self.hparams.forecast_len)
         if stage == 'predict':
-            # For prediction, we might just take one chunk from the test set
-            self.predict_dataset = WarmupForecastDataset(self.test_df, self.input_cols, self.target_col,
-                                                         self.warmup_len, self.forecast_len)
+            # 预测时通常使用测试集
+            self.predict_dataset = WarmupForecastDataset(self.test_df, self.hparams.input_cols, self.hparams.target_col,
+                                                         self.hparams.warmup_len, self.hparams.forecast_len)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4)
+        return DataLoader(self.train_dataset, batch_size=self.hparams.batch_size, shuffle=True, num_workers=4,
+                          persistent_workers=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=4)
+        return DataLoader(self.val_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4,
+                          persistent_workers=True)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.hparams.batch_size, shuffle=False, num_workers=4,
+                          persistent_workers=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.predict_dataset, batch_size=1, shuffle=False, num_workers=4)
+        # 预测时 batch_size 通常为 1
+        return DataLoader(self.predict_dataset, batch_size=1, shuffle=False, num_workers=4, persistent_workers=True)
 
 
 # --- 4. LightningModule (核心改动) ---
@@ -195,16 +215,13 @@ class LSTMForecastModel(pl.LightningModule):
 if __name__ == '__main__':
     pl.seed_everything(42)
     # --- 参数设置 ---
-    CSV_FILE = "timeseries_data_long.csv"
+    CSV_FILE = r"E:\PaperCode\dpl-project\generic_deltamodel\data\camels_data\01013500.csv"
     # 注意：这里的输入列也包含了目标列，因为模型在训练时需要看到整个序列的输入特征
-    INPUT_COLS = ['input_1', 'input_2', 'output']
-    TARGET_COL = 'output'
+    INPUT_COLS = ['prcp(mm/day)','tmean(C)','dayl(day)','srad(W/m2)','vp(Pa)']
+    TARGET_COL = 'flow(mm)'
 
     WARMUP_LEN = 365
-    FORECAST_LEN = 90
-
-    # 创建数据
-    create_dummy_csv(CSV_FILE)
+    FORECAST_LEN = 365
 
     print("\n" + "=" * 50)
     print("METHOD: WARM-UP + FORECAST CHUNKS")
@@ -233,8 +250,8 @@ if __name__ == '__main__':
 
     # 训练
     trainer = pl.Trainer(
-        max_epochs=20,
-        accelerator='auto',
+        max_epochs=100,
+        accelerator='cpu',
         callbacks=[RichProgressBar(), EarlyStopping('val_loss', patience=3)]
     )
     trainer.fit(model, datamodule=data_module)

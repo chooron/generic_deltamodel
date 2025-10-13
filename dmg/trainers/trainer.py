@@ -58,17 +58,18 @@ class Trainer(BaseTrainer):
     TODO: Incorporate support for validation loss and early stopping in
     training loop. This will also enable using ReduceLROnPlateau scheduler.
     """
+
     def __init__(
-        self,
-        config: dict[str, Any],
-        model: torch.nn.Module = None,
-        train_dataset: Optional[dict] = None,
-        eval_dataset: Optional[dict] = None,
-        dataset: Optional[dict] = None,
-        loss_func: Optional[torch.nn.Module] = None,
-        optimizer: Optional[torch.optim.Optimizer] = None,
-        scheduler: Optional[torch.nn.Module] = None,
-        verbose: Optional[bool] = False,
+            self,
+            config: dict[str, Any],
+            model: torch.nn.Module = None,
+            train_dataset: Optional[dict] = None,
+            eval_dataset: Optional[dict] = None,
+            dataset: Optional[dict] = None,
+            loss_func: Optional[torch.nn.Module] = None,
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            scheduler: Optional[torch.nn.Module] = None,
+            verbose: Optional[bool] = False,
     ) -> None:
         self.config = config
         self.model = model or ModelHandler(config)
@@ -108,7 +109,7 @@ class Trainer(BaseTrainer):
             self.start_epoch = self.config['train']['start_epoch'] + 1
             if self.start_epoch > 1:
                 self.load_states()
-    
+
     def init_optimizer(self) -> torch.optim.Optimizer:
         """Initialize a state optimizer.
         
@@ -133,7 +134,7 @@ class Trainer(BaseTrainer):
         cls = optimizer_dict[name]
         if cls is None:
             raise ValueError(f"Optimizer '{name}' not recognized. "
-                                f"Available options are: {list(optimizer_dict.keys())}")
+                             f"Available options are: {list(optimizer_dict.keys())}")
 
         # Initialize
         try:
@@ -163,7 +164,7 @@ class Trainer(BaseTrainer):
         cls = scheduler_dict[name]
         if cls is None:
             raise ValueError(f"Scheduler '{name}' not recognized. "
-                                f"Available options are: {list(scheduler_dict.keys())}")
+                             f"Available options are: {list(scheduler_dict.keys())}")
 
         # Initialize
         try:
@@ -183,7 +184,7 @@ class Trainer(BaseTrainer):
         path = self.config['model_path']
         for file in os.listdir(path):
             # Check for state checkpoint: looks like `train_state_epoch_XX.pt`.
-            if ('train_state' in file) and (str(self.start_epoch-1) in file):
+            if ('train_state' in file) and (str(self.start_epoch - 1) in file):
                 # log.info("Loading trainer states --> Resuming Training from" /
                 #          f" epoch {self.start_epoch}")
 
@@ -192,7 +193,7 @@ class Trainer(BaseTrainer):
                 # Restore optimizer states
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 # # Restore model
-                self.model.load_model(epoch=self.start_epoch-1)
+                self.model.load_model(epoch=self.start_epoch - 1)
 
                 if self.scheduler:
                     self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -203,11 +204,11 @@ class Trainer(BaseTrainer):
                     torch.cuda.set_rng_state_all(checkpoint['cuda_random_state'])
                 return
             elif 'train_state' in file:
-                raise FileNotFoundError(f"Available checkpoint file {file} does" /
-                                        f" not match start epoch {self.start_epoch-1}.")
+                raise FileNotFoundError(f"Available checkpoint file {file} does" +
+                                        f" not match start epoch {self.start_epoch - 1}.")
 
         # If no checkpoint file is found for named epoch...
-        raise FileNotFoundError(f"No checkpoint for epoch {self.start_epoch-1}.")
+        raise FileNotFoundError(f"No checkpoint for epoch {self.start_epoch - 1}.")
 
     def train(self) -> None:
         """Train the model."""
@@ -220,7 +221,7 @@ class Trainer(BaseTrainer):
         )
 
         log.info(f"Training model: Beginning {self.start_epoch} of {self.epochs} epochs")
-        
+
         # Training loop
         for epoch in range(self.start_epoch, self.epochs + 1):
             self.train_one_epoch(
@@ -291,7 +292,7 @@ class Trainer(BaseTrainer):
                 scheduler=self.scheduler,
                 clear_prior=True,
             )
-        
+
             # if self.config['do_tune']:
             #     # Create temporary checkpoint if needed
             #     chkpt = None
@@ -353,9 +354,9 @@ class Trainer(BaseTrainer):
         return self.predictions
 
     def _batch_data(
-        self,
-        batch_list: list[dict[str, torch.Tensor]],
-        target_key: str = None,
+            self,
+            batch_list: list[dict[str, torch.Tensor]],
+            target_key: str = None,
     ) -> None:
         """Merge batch data into a single dictionary.
         
@@ -384,11 +385,11 @@ class Trainer(BaseTrainer):
             raise ValueError(f"Error concatenating batch data: {e}") from e
 
     def _forward_loop(
-        self,
-        data: dict[str, torch.Tensor],
-        batch_start: NDArray,
-        batch_end: NDArray,
-    ) -> None:
+            self,
+            data: dict[str, torch.Tensor],
+            batch_start: NDArray,
+            batch_end: NDArray,
+    ):
         """Forward loop used in model evaluation and inference.
 
         Parameters
@@ -402,7 +403,8 @@ class Trainer(BaseTrainer):
         """
         # Track predictions accross batches
         batch_predictions = []
-
+        # Save the batch predictions
+        model_name = self.config['delta_model']['phy_model']['model'][0]
         for i in tqdm.tqdm(range(len(batch_start)), desc='Forwarding', leave=False, dynamic_ncols=True):
             self.current_batch = i
 
@@ -412,21 +414,47 @@ class Trainer(BaseTrainer):
                 batch_start[i],
                 batch_end[i],
             )
-
-            prediction = self.model(dataset_sample, eval=True)
-
-            # Save the batch predictions
-            model_name = self.config['delta_model']['phy_model']['model'][0]
-            prediction = {
-                key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
-            }
-            batch_predictions.append(prediction)
+            if self.config['test']['split_dataset']:
+                total_time_steps = dataset_sample["x_phy"].shape[0]
+                # split to 730
+                prediction_time_chunks = []
+                prediction_length = self.config['delta_model']['rho']
+                warmup_length = self.config['delta_model']['phy_model']['warm_up']
+                # subtime_length = prediction_length + warmup_length
+                time_starts = range(0, total_time_steps - prediction_length - warmup_length + 1, prediction_length)
+                for t_start in time_starts:
+                    t_end = t_start + prediction_length + warmup_length
+                    time_window_input = {
+                        key: tensor[t_start:t_end, ...] if len(tensor.shape) > 2 else tensor
+                        for key, tensor in dataset_sample.items()
+                    }
+                    prediction_window = self.model(time_window_input, eval=True)
+                    prediction_valid_part = {
+                        key: tensor[warmup_length:, ...].cpu().detach()
+                        if tensor.shape[0] > warmup_length else tensor.cpu().detach()
+                        for key, tensor in prediction_window[model_name].items()
+                    }
+                    prediction_time_chunks.append(prediction_valid_part)
+                collated_chunks = {key: [] for key in prediction_time_chunks[0]}
+                for chunk in prediction_time_chunks:
+                    for key, ten in chunk.items():
+                        collated_chunks[key].append(ten)
+                prediction = {
+                    key: torch.cat(tensors, dim=0) for key, tensors in collated_chunks.items()
+                }
+                batch_predictions.append(prediction)
+            else:
+                prediction = self.model(dataset_sample, eval=True)
+                prediction = {
+                    key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
+                }
+                batch_predictions.append(prediction)
         return batch_predictions
 
     def calc_metrics(
-        self,
-        batch_predictions: list[dict[str, torch.Tensor]],
-        observations: torch.Tensor,
+            self,
+            batch_predictions: list[dict[str, torch.Tensor]],
+            observations: torch.Tensor,
     ) -> None:
         """Calculate and save model performance metrics.
 
@@ -443,6 +471,7 @@ class Trainer(BaseTrainer):
 
         # Remove warm-up data
         target = target[self.config['delta_model']['phy_model']['warm_up']:, :]
+        target = target[:len(predictions),:]
 
         # Compute metrics
         metrics = Metrics(
@@ -454,11 +483,11 @@ class Trainer(BaseTrainer):
         metrics.dump_metrics(self.config['out_path'])
 
     def _log_epoch_stats(
-        self,
-        epoch: int,
-        loss_dict: dict[str, float],
-        n_minibatch: int,
-        start_time: float,
+            self,
+            epoch: int,
+            loss_dict: dict[str, float],
+            n_minibatch: int,
+            start_time: float,
     ) -> None:
         """Log statistics after each epoch.
 

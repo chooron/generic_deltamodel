@@ -2,10 +2,10 @@
 # Download: https://mhpi-spatial.s3.us-east-2.amazonaws.com/mhpi-release/camels/camels_data.zip
 
 name: camels_531
-data_path: E:\pycode\generic_deltamodel\data\camels_dataset
+data_path: E:\PaperCode\dpl-project\generic_deltamodel\data\camels_dataset
 
-gage_info: E:\pycode\generic_deltamodel\data\gage_id.npy
-subset_path: E:\pycode\generic_deltamodel\data\531sub_id.txt
+gage_info: E:\PaperCode\dpl-project\generic_deltamodel\data\gage_id.npy
+subset_path: E:\PaperCode\dpl-project\generic_deltamodel\data\531sub_id.txt
 
 area_name: area_gages2
 
