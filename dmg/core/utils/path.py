@@ -74,7 +74,7 @@ class PathBuilder(BaseModel):
 
     def build_path_model(self) -> str:
         """Build path to model object from individual root paths."""
-        return os.path.join(
+        path_model = os.path.join(
             self.base_path,
             self.dataset_name,
             self.train_period,
@@ -85,6 +85,9 @@ class PathBuilder(BaseModel):
             self.dynamic_state,
             # self.dynamic_parameters,
         )
+        if self.config['test']['test_group_id'] is not None:
+            path_model = os.path.join(path_model, f"pub_basin_{self.config['test']['test_group_id']}")
+        return path_model
 
     def build_path_out(self, model_path: str = None) -> dict[str, Any]:
         """Build path to model outputs from individual root paths.
