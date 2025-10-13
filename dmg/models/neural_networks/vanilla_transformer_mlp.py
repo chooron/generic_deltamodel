@@ -58,7 +58,7 @@ class VanillaTransformerMlpModel(torch.nn.Module):
             VanillaTransformer(
                 nx1, hiddeninv1, nhead,
                 num_encoder_layers, transformer_dim_fc,
-                dropout=dr1, output_dim=ny1, seq_len=365),
+                dropout=dr1, output_dim=ny1, seq_len=730),
         )
         self.ann = AnnModel(
             nx=nx2, ny=ny2, hidden_size=hiddeninv2, dr=dr2,

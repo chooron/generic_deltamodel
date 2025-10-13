@@ -35,13 +35,14 @@ class DplModel(torch.nn.Module):
     device
         The device to run the model on.
     """
+
     def __init__(
-        self,
-        phy_model_name: Optional[str] = None,
-        phy_model: Optional[torch.nn.Module] = None,
-        nn_model: Optional[torch.nn.Module] = None,
-        config: Optional[dict[str, Any]] = None,
-        device: Optional[torch.device] = 'cpu',
+            self,
+            phy_model_name: Optional[str] = None,
+            phy_model: Optional[torch.nn.Module] = None,
+            nn_model: Optional[torch.nn.Module] = None,
+            config: Optional[dict[str, Any]] = None,
+            device: Optional[torch.device] = 'cpu',
     ) -> None:
         super().__init__()
         self.name = 'dPL Model'
@@ -113,7 +114,8 @@ class DplModel(torch.nn.Module):
             The output predictions.
         """
         # Neural network
-        if type(self.nn_model).__name__ in ['LstmMlpModel','GruMlpModel', "AttentionLstm", "HopeMlpV1"]:
+        if type(self.nn_model).__name__ in ['LstmMlpModel', 'GruMlpModel', "AttentionLstm", "HopeMlpV1",
+                                            "VanillaTransformerMlpModel"]:
             parameters = self.nn_model(data_dict['xc_nn_norm'], data_dict['c_nn_norm'])
         elif type(self.nn_model).__name__.startswith('DualAttnLstmV'):
             parameters = self.nn_model(data_dict['x_nn_norm'], data_dict['c_nn_norm'])
