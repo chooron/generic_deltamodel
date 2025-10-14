@@ -85,7 +85,7 @@ class PathBuilder(BaseModel):
             self.dynamic_state,
             # self.dynamic_parameters,
         )
-        if self.config['test']['test_group_id'] is not None:
+        if 'test_group_id' in self.config['test'].keys():
             path_model = os.path.join(path_model, f"pub_basin_{self.config['test']['test_group_id']}")
         return path_model
 
