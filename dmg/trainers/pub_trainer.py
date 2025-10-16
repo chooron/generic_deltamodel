@@ -111,19 +111,38 @@ class PubTrainer(BaseTrainer):
         return self.scheduler
 
     def load_states(self) -> None:
-        """Load model, optimizer, and scheduler states from a checkpoint."""
+        """
+        Load model, optimizer, and scheduler states from a checkpoint to resume
+        training if a checkpoint file exists.
+        """
         path = self.config['model_path']
-        checkpoint_file = os.path.join(path, f"train_state_epoch_{self.start_epoch - 1}.pt")
-        if not os.path.exists(checkpoint_file):
-            raise FileNotFoundError(f"No checkpoint for epoch {self.start_epoch - 1}.")
-        checkpoint = torch.load(checkpoint_file)
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.model.load_model(epoch=self.start_epoch - 1)
-        if self.scheduler:
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        torch.set_rng_state(checkpoint['random_state'])
-        if torch.cuda.is_available() and 'cuda_random_state' in checkpoint:
-            torch.cuda.set_rng_state_all(checkpoint['cuda_random_state'])
+        for file in os.listdir(path):
+            # Check for state checkpoint: looks like `train_state_epoch_XX.pt`.
+            if ('train_state' in file) and (str(self.start_epoch - 1) in file):
+                # log.info("Loading trainer states --> Resuming Training from" /
+                #          f" epoch {self.start_epoch}")
+
+                checkpoint = torch.load(os.path.join(path, file))
+
+                # Restore optimizer states
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                # # Restore model
+                self.model.load_model(epoch=self.start_epoch - 1)
+
+                if self.scheduler:
+                    self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+                # Restore random states
+                torch.set_rng_state(checkpoint['random_state'])
+                if torch.cuda.is_available() and 'cuda_random_state' in checkpoint:
+                    torch.cuda.set_rng_state_all(checkpoint['cuda_random_state'])
+                return
+            elif 'train_state' in file:
+                raise FileNotFoundError(f"Available checkpoint file {file} does" +
+                                        f" not match start epoch {self.start_epoch - 1}.")
+
+        # If no checkpoint file is found for named epoch...
+        raise FileNotFoundError(f"No checkpoint for epoch {self.start_epoch - 1}.")
 
     def train(self) -> None:
         """Train the model."""

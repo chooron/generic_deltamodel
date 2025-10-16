@@ -51,7 +51,7 @@ test:
     end_time: 1999/09/30
     batch_size: 25
     test_epoch: 100
-    test_group_id: 1
+    test_group_id: 2
 
 ## Inference -------------------------------#
 simulation:
