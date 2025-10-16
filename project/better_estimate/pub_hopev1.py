@@ -7,7 +7,7 @@ from project.better_estimate import load_config
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = r'conf/config_dhbv_pub_lstm.yaml'
+CONFIG_PATH = r'conf/config_dhbv_pub_hopev1.yaml'
 #------------------------------------------#
 # model training
 config = load_config(CONFIG_PATH)
@@ -24,7 +24,7 @@ trainer = trainer_cls(
     verbose=True
 )
 
-# trainer.train()
+trainer.train()
 print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation
