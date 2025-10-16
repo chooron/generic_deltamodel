@@ -240,7 +240,6 @@ class HydroLoader(BaseLoader):
         target = np.transpose(target[:, idx_start:idx_end], (1,0,2))
         gage_info = np.load(os.getenv("GAGE_INFO"))
         # Subset basins if necessary
-        # todo 这里可能对671流域的预测有影响
         if self.config['observations']['name'] == "camels_531":
             subset_path = os.getenv("SUBSET_PATH")
             with open(subset_path) as f:
