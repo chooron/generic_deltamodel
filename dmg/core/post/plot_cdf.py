@@ -1,121 +1,81 @@
 import matplotlib.pyplot as plt
+# import scienceplots
 import numpy as np
-
+from itertools import cycle
 
 def plot_cdf(
-    metrics: dict[str, list[float]],
-    metric_names: list[str],
-    model_labels: list[str] = None,
-    title: str = "CDF Comparison",
-    xlabel: str = "Metric Value",
-    figsize: tuple = None,
-    xbounds: tuple = None,
-    ybounds: tuple = None,
-    show_arrow: bool = False,
-    dpi: int = 100,
-    fontsize: int = 12,
-    ticksize: int = 10,
+        metrics: list[dict],
+        metric_names: list[str],
+        ax: plt.Axes,
+        model_labels: list[str] = None,
+        colors: list[str] = None,
+        title: str = "",
+        xlabel: str = "Metric Value",
+        xbounds: tuple = None,
+        ybounds: tuple = (0, 1.02),
+        show_arrow: bool = False,
+        show_median_label: bool = True,
+        fontsize: int = 14,
+        ticksize: int = 12,
+        legend_fontsize: int = 12,
+        linewidth: float = 1.8,
+        axis_width: float = 1.2,
 ):
-    """
-    Plots cumulative distribution function (CDF) for specified metric(s) for
-    one or many models.
 
-    Parameters
-    ----------
-    metrics
-        Dictionary containing metrics data for each model.
-    metric_names
-        List of metric names to plot.
-    model_labels
-        List of labels for each model. Default is None.
-    title
-        Title of the plot. Default is "CDF Comparison".
-    xlabel
-        Label for the x-axis. Default is "Metric Value".
-    figsize
-        Size of the figure. Default is None and plt will autosize.
-    xbounds
-        Bounds for the x-axis. Default is None and plt will autoscale.
-    ybounds
-        Bounds for the y-axis. Default is None and plt will autoscale.
-    show_arrow
-        Show an arrow pointing in the direction of better performance. Default
-        is False.
-    dpi
-        Resolution of the figure. Default is 100.
-    fontsize
-        Font size for the plot. Default is 12.
-    ticksize
-        Font size for the ticks. Default is 10.
-    """
     if not metrics or not metric_names:
-        print("Error: No metrics data or metric names provided.")
-        return
+        raise ValueError("错误：未提供指标数据或指标名称。")
 
-    # Ensure model_labels matches the number of models
     if model_labels is None:
-        model_labels = [f"Model {i+1}" for i in range(len(metrics))]
+        model_labels = [f"Model {i + 1}" for i in range(len(metrics))]
     elif len(model_labels) != len(metrics):
-        print("Error: Number of model labels must match the number of models.")
-        return
+        raise ValueError("错误：模型标签数量必须与模型数量匹配。")
 
-    # Create the plot
-    if figsize:
-        plt.figure(figsize=figsize, dpi=dpi)
-    else:
-        plt.figure(figsize=(10, 6), dpi=dpi)
+    if colors is None:
+        colors = ['#0077BB', '#EE7733', '#009988', '#CC3311', '#33BBEE', '#EE3377', '#BBBBBB']
+    color_cycle = cycle(colors)
 
     for metric_name in metric_names:
         for i, model_data in enumerate(metrics):
-            if metric_name in model_data and isinstance(model_data[metric_name], list):
+            if metric_name in model_data and isinstance(model_data[metric_name], (list, np.ndarray)):
                 values = np.array(model_data[metric_name])
+                values = values[~np.isnan(values)]
+                if values.size == 0:
+                    print(f"警告：模型 {model_labels[i]} 的指标 '{metric_name}' 无有效数据。")
+                    continue
+
                 sorted_values = np.sort(values)
                 cdf = np.arange(1, len(sorted_values) + 1) / len(sorted_values)
+                median_val = np.median(values)
 
-                # Plot the CDF
-                plt.plot(sorted_values, cdf, label=f"{model_labels[i]} - {metric_name.capitalize()}")
+                legend_label = f"{model_labels[i]} - {metric_name.upper()}$_{{50}}$: {median_val:.3f}"
+                ax.plot(sorted_values, cdf, label=legend_label,
+                        color=next(color_cycle), linewidth=linewidth)
             else:
-                print(f"Warning: Metric '{metric_name}' not found or invalid in model {i+1}.")
+                print(f"警告：模型 {model_labels[i]} 中未找到指标 '{metric_name}' 或格式无效。")
 
-    # Add labels, legend, and grid
-    plt.title(title, fontsize=fontsize)
-    plt.xlabel(xlabel, fontsize=fontsize)
-    plt.ylabel("CDF", fontsize=fontsize)
-
-    plt.xticks(fontsize=ticksize)
-    plt.yticks(fontsize=ticksize)
-
-    if len(model_labels) > 1:
-        # No need to show legend if only one model.
-        plt.legend(loc="best")
-
-    plt.grid(True)
+    ax.set_title(title, fontsize=fontsize, weight='bold')
+    ax.set_xlabel(xlabel, fontsize=fontsize)
+    ax.set_ylabel("CDF", fontsize=fontsize)
 
     if xbounds:
-        plt.xlim(xbounds)
-    if ybounds:
-        plt.ylim(ybounds)
+        ax.set_xlim(xbounds)
+    ax.set_ylim(ybounds)
 
-    # Add an arrow annotation if requested
+    ax.axhline(0.5, color='black', linewidth=axis_width, linestyle='--')
+    if show_median_label:
+        ax.text(ax.get_xlim()[1], 0.5, ' 0.5', va='center', ha='left', fontsize=ticksize, color='black')
+
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(loc="best", fontsize=legend_fontsize)
+
+    ax.grid(True, which='major', linestyle='--', linewidth=0.7, color='#666666', alpha=0.7)
+    ax.tick_params(axis='both', which='major', labelsize=ticksize, width=axis_width,)
+    for spine in ax.spines.values():
+        spine.set_linewidth(axis_width)
+        spine.set_color('black')
+
     if show_arrow:
-        # Get the axis limits
-        xlim = plt.xlim()
-        ylim = plt.ylim()
+        ax.annotate("Better →", xy=(0.05, 0.1), xycoords='axes fraction',
+                    fontsize=fontsize, ha='left', va='center',
+                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="black", lw=1, alpha=0.8))
 
-        arrow_x_start = xlim[0] + 0.15 * (xlim[1] - xlim[0])  # Start slightly to the right of the y-axis
-        arrow_x_end = xlim[0] + 0.3 * (xlim[1] - xlim[0])    # End near the right edge
-        arrow_y = ylim[0] + 0.25 * (ylim[1] - ylim[0])                # Keep it centered vertically
-
-        # Add the arrow without text
-        plt.annotate(
-            "",  # No text
-            xy=(arrow_x_end, arrow_y),
-            xytext=(arrow_x_start, arrow_y),  # Keep the y-coordinate constant
-            arrowprops={'facecolor':'red', 'arrowstyle':'->', 'lw':2},
-            fontsize=fontsize,
-        )
-
-        plt.text(arrow_x_start - 0.1, arrow_y, "Better", fontsize=12, color='black', ha='left', va='center')
-
-    # Show the plot
-    plt.show()

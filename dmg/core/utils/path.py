@@ -1,6 +1,8 @@
 import hashlib
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from typing import Any
 
 import torch
@@ -43,7 +45,7 @@ class PathBuilder(BaseModel):
         
         This method is called after the model is initialized.
         """
-        self.base_path = self.config['save_path']
+        self.base_path = os.path.join(os.getenv("PROJ_PATH"), self.config['save_path'])
 
         self.dataset_name = self._dataset_name(self.config)
         self.phy_model_inputs = self._phy_model_inputs(self.config)

@@ -1,17 +1,41 @@
-## 结果
+1.1 Benchmark comparison
 
-### 1. 对比不同动态估计器应用于水文模型动态参数估计的精度
+(1)  Predictive performance
 
-- [ ] 对比直接的预测精度， 累积频率图
-- [ ] 对于精度的分布图
-- [ ] 对比泛化性能
+比较在dPL-HBV 1.1架构下，替换了参数的动态估计器LSTM，选用GRU，Transformer以及SSM模型下，dPL-HBV 1.1的预测精度，并与benchmark的LSTM和SSM比较（共六个模型）。
 
-### 2. 无资料地区的精度对比, 比较PUB和PUR的性能
+【精度累积频率分布图】
 
-- [ ] 比较PUB
-- [ ] 比较PUR
+【流域shp上点精度，以及与dPL-HBV-LSTM模型的差异图】
 
-### 3. 解析不同动态估计器的估计结果
+(2)  PUB performance
 
-- [ ] 可视化动态估计器估计的动态参数是如何的
-- [ ] 使用可解释性分析
+-       使用十折交叉检验下，dPL-HBV-LSTM与dPL-HBV-SSM模型的预测精度。
+
+-       使用PUR分区，对大面积的无资料流域的预测精度进行率定
+
+1.2 Inspect Model
+
+parameters and inner fluxes
+
+(1)  分析四种模型对于模型动态参数估计的结果特性
+
+a)    不同HRU的参数动态估计结果的变化特性
+
+b)    相似性
+
+c)    统计特征
+
+(2)  分析四种模型对于SWE和BFI两个中间变量的拟合精度
+
+
+
+1.3 Explain Model
+
+with post-hoc interpretability method
+
+对比LSTM与其他深度学习在动态参数预测时的事后可解释性分析结果：
+
+a)    对于历史数据的关注程度
+
+b)    对于观测数据和流域属性数据的关注程度
