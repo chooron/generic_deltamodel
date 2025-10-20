@@ -239,7 +239,7 @@ class HydroLoader(BaseLoader):
         x_nn = forcings[:,:, nn_forc_idx]
         c_nn = attributes[:, nn_attr_idx]
         target = np.transpose(target[:, idx_start:idx_end], (1,0,2))
-        gage_info = os.path.join(os.getenv("DATA_PATH"), "gage_id.npy")
+        gage_info = np.load(os.path.join(os.getenv("DATA_PATH"), "gage_id.npy"))
         # Subset basins if necessary
         if self.config['observations']['name'] == "camels_531":
             subset_path = os.path.join(os.getenv("DATA_PATH"), "531sub_id.txt")
@@ -585,5 +585,4 @@ class HydroLoader(BaseLoader):
         if len(data.shape) < 3:
             return data
         else:
-            return np.swapaxes(data, 1, 0)
             return np.swapaxes(data, 1, 0)
