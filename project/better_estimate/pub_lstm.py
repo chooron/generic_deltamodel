@@ -25,12 +25,12 @@ trainer = trainer_cls(
     verbose=True
 )
 
-trainer.train()
+# trainer.train()
 print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation
 config['mode'] = 'test'
-config['test']['test_epoch'] = 100
+config['test']['test_epoch'] = 50
 set_randomseed(config['random_seed'])
 
 model = ModelHandler(config, verbose=True)

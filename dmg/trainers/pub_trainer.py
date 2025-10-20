@@ -10,7 +10,6 @@ from numpy.typing import NDArray
 
 from dmg.core.calc.metrics import Metrics
 from dmg.core.data import create_training_grid
-from dmg.core.data.samplers.pub_sampler import PubSampler
 # Make sure your factory can import your new PubSampler
 from dmg.core.utils.factory import import_data_sampler, load_criterion
 from dmg.core.utils.utils import save_outputs, save_train_state
@@ -176,7 +175,8 @@ class PubTrainer(BaseTrainer):
             self.total_loss += loss.item()
 
             if self.verbose:
-                tqdm.tqdm.write(f"Epoch {epoch}, batch {mb} | loss: {loss.item()}")
+                if mb % 10 == 0:
+                    tqdm.tqdm.write(f"Epoch {epoch}, batch {mb} | loss: {loss.item()}")
 
         if self.use_scheduler:
             self.scheduler.step()
@@ -208,36 +208,65 @@ class PubTrainer(BaseTrainer):
         # This list will store the output dictionary for each validation basin
         all_basin_predictions = []
         observations = self.eval_dataset['target']
+        model_name = self.config['delta_model']['phy_model']['model'][0]
 
         # Loop through each validation basin individually
-        for basin_idx in tqdm.tqdm(validation_indices, desc='Evaluating Basins', leave=False, dynamic_ncols=True):
-            # 1. Get the complete data for one validation basin
+
+        # 1. Get the complete data for one validation basin
+        if self.config['test']['split_dataset']:
             dataset_sample = self.sampler.get_validation_sample(
                 self.eval_dataset,
-                basin_idx,
+                validation_indices,
             )
-
-            # 2. Run the model forward for this single basin
-            prediction_dict = self.model(dataset_sample, eval=True)
-
-            # 3. Detach tensors and move to CPU to save memory
-            model_name = self.config['delta_model']['phy_model']['model'][0]
-            cleaned_prediction = {
-                key: tensor.cpu().detach() for key, tensor in prediction_dict[model_name].items()
+            total_time_steps = dataset_sample["x_phy"].shape[0]
+            # split to 730
+            prediction_time_chunks = []
+            prediction_length = self.config['delta_model']['rho']
+            warmup_length = self.config['delta_model']['phy_model']['warm_up']
+            # subtime_length = prediction_length + warmup_length
+            time_starts = range(0, total_time_steps - prediction_length - warmup_length + 1, prediction_length)
+            for t_start in time_starts:
+                t_end = t_start + prediction_length + warmup_length
+                time_window_input = {
+                    key: tensor[t_start:t_end, ...] if len(tensor.shape) > 2 else tensor
+                    for key, tensor in dataset_sample.items()
+                }
+                prediction_window = self.model(time_window_input, eval=True)
+                prediction_valid_part = {
+                    key: tensor[warmup_length:, ...].cpu().detach()
+                    if tensor.shape[0] > warmup_length else tensor.cpu().detach()
+                    for key, tensor in prediction_window[model_name].items()
+                }
+                prediction_time_chunks.append(prediction_valid_part)
+            collated_chunks = {key: [] for key in prediction_time_chunks[0]}
+            for chunk in prediction_time_chunks:
+                for key, ten in chunk.items():
+                    collated_chunks[key].append(ten)
+            prediction = {
+                key: torch.cat(tensors, dim=0) for key, tensors in collated_chunks.items()
             }
-            all_basin_predictions.append(cleaned_prediction)
-
-        # The `all_basin_predictions` variable is now equivalent to the old `batch_predictions`
-        # and can be passed to the metrics calculation function.
-        self.predictions = self._batch_data(all_basin_predictions)
+            self.predictions = prediction
+        else:
+            for basin_idx in tqdm.tqdm(validation_indices, desc='Evaluating Basins', leave=False,
+                                       dynamic_ncols=True):
+                dataset_sample = self.sampler.get_validation_sample(
+                    self.eval_dataset,
+                    basin_idx,
+                )
+                prediction = self.model(dataset_sample, eval=True)
+                prediction = {
+                    key: tensor.cpu().detach() for key, tensor in prediction[model_name].items()
+                }
+                all_basin_predictions.append(prediction)
+                self.predictions = self._batch_data(all_basin_predictions)
 
         # Save predictions and calculate metrics
         log.info("Saving model outputs + Calculating metrics")
-        save_outputs(self.config, all_basin_predictions,
+        save_outputs(self.config, [self.predictions],
                      observations)  # Pass original targets for saving if needed
 
         # Calculate metrics using the collected predictions
-        self.calc_metrics(all_basin_predictions, observations)
+        self.calc_metrics([self.predictions], observations)
 
     # ... (inference, _batch_data, _forward_loop methods remain) ...
     # NOTE: The _forward_loop is no longer used by evaluate(). If you use inference(),
@@ -296,6 +325,7 @@ class PubTrainer(BaseTrainer):
 
         target = np.expand_dims(observations[:, :, 0].cpu().numpy(), 2)
         target = target[self.config['delta_model']['phy_model']['warm_up']:, :]
+        target = target[:len(predictions), :, :]
 
         metrics = Metrics(
             np.swapaxes(predictions.squeeze(), 1, 0),

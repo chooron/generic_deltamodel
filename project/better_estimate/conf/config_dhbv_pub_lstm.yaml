@@ -40,7 +40,7 @@ train:
     target: [streamflow]
     optimizer: Adadelta
     batch_size: 100
-    epochs: 100
+    epochs: 50
     start_epoch: 0
     save_epoch: 5
 
@@ -51,7 +51,8 @@ test:
     end_time: 1999/09/30
     batch_size: 25
     test_epoch: 100
-    test_group_id: 3
+    test_group_id: 0
+    split_dataset: True
 
 ## Inference -------------------------------#
 simulation:

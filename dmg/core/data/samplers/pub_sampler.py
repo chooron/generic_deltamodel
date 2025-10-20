@@ -123,7 +123,7 @@ class PubSampler(BaseSampler):
         if basin_idx not in self.val_indices:
             raise ValueError(f"Basin index {basin_idx} is not in the validation set.")
 
-        i_grid = np.array([basin_idx])
+        i_grid = np.array(basin_idx)
 
         validation_batch = {}
         for key, value in dataset.items():
