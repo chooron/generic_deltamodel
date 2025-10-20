@@ -1,5 +1,5 @@
 import os  # <<< NEW: Import os for environment variables
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -46,8 +46,8 @@ class PubSampler(BaseSampler):
         Paths are read from environment variables.
         """
         # 1. Get file paths from environment variables
-        groups_dir = os.getenv("BASIN_GROUPS_DIR")
-        all_basins_file = os.getenv("GAGE_INFO")
+        groups_dir = os.path.join(os.getenv("DATA_PATH"), "basin_groups")
+        all_basins_file = os.path.join(os.getenv("DATA_PATH"), "gage_id.npy")
 
         if not groups_dir or not all_basins_file:
             raise EnvironmentError(
