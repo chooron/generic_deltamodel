@@ -50,8 +50,8 @@ test:
     start_time: 1989/10/01
     end_time: 1999/09/30
     batch_size: 25
-    test_epoch: 100
-    test_group_id: 0
+    test_epoch: 50
+    test_group_id: 4
     split_dataset: True
 
 ## Inference -------------------------------#

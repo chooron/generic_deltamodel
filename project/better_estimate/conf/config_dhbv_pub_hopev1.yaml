@@ -51,7 +51,7 @@ test:
     end_time: 1999/09/30
     batch_size: 25
     test_epoch: 50
-    test_group_id: 0 # change pub id
+    test_group_id: 9 # change pub id
     split_dataset: True
 
 ## Inference -------------------------------#

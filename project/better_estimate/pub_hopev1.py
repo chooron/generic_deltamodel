@@ -17,7 +17,6 @@ CONFIG_PATH = r'conf/config_dhbv_pub_hopev1.yaml'
 # model training
 config = load_config(CONFIG_PATH)
 config['mode'] = 'train'
-config['train']['start_epoch'] = 5
 set_randomseed(config['random_seed'])
 model = ModelHandler(config, verbose=True)
 data_loader_cls = import_data_loader(config['data_loader'])

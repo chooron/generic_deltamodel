@@ -211,7 +211,6 @@ class PubTrainer(BaseTrainer):
         model_name = self.config['delta_model']['phy_model']['model'][0]
 
         # Loop through each validation basin individually
-
         # 1. Get the complete data for one validation basin
         if self.config['test']['split_dataset']:
             dataset_sample = self.sampler.get_validation_sample(

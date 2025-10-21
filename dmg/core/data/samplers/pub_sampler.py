@@ -117,13 +117,15 @@ class PubSampler(BaseSampler):
     def get_validation_sample(
             self,
             dataset: dict[str, NDArray[np.float32]],
-            basin_idx: Union[int, list[int]],
+            basin_idx: Union[int, list[int], NDArray],
     ) -> dict[str, torch.Tensor]:
         """Generate a complete data sample for one validation basin."""
         if basin_idx not in self.val_indices:
             raise ValueError(f"Basin index {basin_idx} is not in the validation set.")
         if isinstance(basin_idx, list):
             i_grid = np.array(basin_idx)
+        elif isinstance(basin_idx, np.ndarray):
+            i_grid = basin_idx
         else:
             i_grid = np.array([basin_idx])
 

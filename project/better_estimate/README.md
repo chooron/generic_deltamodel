@@ -1,3 +1,5 @@
+# 3 结果
+
 1.1 Benchmark comparison
 
 (1)  Predictive performance
@@ -10,9 +12,9 @@
 
 (2)  PUB performance
 
--       使用十折交叉检验下，dPL-HBV-LSTM与dPL-HBV-SSM模型的预测精度。
+使用十折交叉检验下，dPL-HBV-LSTM与dPL-HBV-SSM模型的预测精度。
 
--       使用PUR分区，对大面积的无资料流域的预测精度进行率定
+使用PUR分区，对大面积的无资料流域的预测精度进行率定
 
 1.2 Inspect Model
 
@@ -29,7 +31,6 @@ c)    统计特征
 (2)  分析四种模型对于SWE和BFI两个中间变量的拟合精度
 
 
-
 1.3 Explain Model
 
 with post-hoc interpretability method
@@ -39,3 +40,12 @@ with post-hoc interpretability method
 a)    对于历史数据的关注程度
 
 b)    对于观测数据和流域属性数据的关注程度
+
+# 4 讨论
+
+| 章节                  | 主题                   | 对应结果章节                      | 核心问题              |
+| :------------------ | :------------------- | :-------------------------- | :---------------- |
+| **4.1 模型性能与流域依赖性**  | 综合性能、PUB结果、聚类解释      | §1.1 Benchmark & PUB        | 不同模型在不同流域下为何表现不同？ |
+| **4.2 模型内部机理与可解释性** | 动态参数特征 + 中间变量 + 可解释性 | §1.2 Inspect & §1.3 Explain | 模型的动态估计是否体现水文机理？  |
+
+
