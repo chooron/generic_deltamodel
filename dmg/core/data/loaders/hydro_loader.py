@@ -7,9 +7,10 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 import torch
+from dotenv import load_dotenv
 from numpy.typing import NDArray
 from sklearn.exceptions import DataDimensionalityWarning
-from dotenv import load_dotenv
+
 load_dotenv()
 from dmg.core.data.data import intersect, split_dataset_by_basin
 from dmg.core.data.loaders.base import BaseLoader
@@ -165,7 +166,7 @@ class HydroLoader(BaseLoader):
         try:
             # if self.config['observations']['data_path']:
             #     data_path = self.config['observations']['data_path']
-            data_path = os.getenv("DATA_PATH")
+            data_path = os.path.join(os.getenv("DATA_PATH"), "camels_dataset")
 
             if scope == 'train':
                 if not data_path:
@@ -238,10 +239,10 @@ class HydroLoader(BaseLoader):
         x_nn = forcings[:,:, nn_forc_idx]
         c_nn = attributes[:, nn_attr_idx]
         target = np.transpose(target[:, idx_start:idx_end], (1,0,2))
-        gage_info = np.load(os.getenv("GAGE_INFO"))
+        gage_info = np.load(os.path.join(os.getenv("DATA_PATH"), "gage_id.npy"))
         # Subset basins if necessary
         if self.config['observations']['name'] == "camels_531":
-            subset_path = os.getenv("SUBSET_PATH")
+            subset_path = os.path.join(os.getenv("DATA_PATH"), "531sub_id.txt")
             with open(subset_path) as f:
                 selected_basins = json.load(f)
 

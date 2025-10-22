@@ -1,5 +1,5 @@
 import os  # <<< NEW: Import os for environment variables
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -46,8 +46,8 @@ class PubSampler(BaseSampler):
         Paths are read from environment variables.
         """
         # 1. Get file paths from environment variables
-        groups_dir = os.getenv("BASIN_GROUPS_DIR")
-        all_basins_file = os.getenv("GAGE_INFO")
+        groups_dir = os.path.join(os.getenv("DATA_PATH"), "basin_groups")
+        all_basins_file = os.path.join(os.getenv("DATA_PATH"), "gage_id.npy")
 
         if not groups_dir or not all_basins_file:
             raise EnvironmentError(
@@ -117,13 +117,17 @@ class PubSampler(BaseSampler):
     def get_validation_sample(
             self,
             dataset: dict[str, NDArray[np.float32]],
-            basin_idx: int,
+            basin_idx: Union[int, list[int], NDArray],
     ) -> dict[str, torch.Tensor]:
         """Generate a complete data sample for one validation basin."""
         if basin_idx not in self.val_indices:
             raise ValueError(f"Basin index {basin_idx} is not in the validation set.")
-
-        i_grid = np.array([basin_idx])
+        if isinstance(basin_idx, list):
+            i_grid = np.array(basin_idx)
+        elif isinstance(basin_idx, np.ndarray):
+            i_grid = basin_idx
+        else:
+            i_grid = np.array([basin_idx])
 
         validation_batch = {}
         for key, value in dataset.items():
@@ -146,6 +150,7 @@ class PubSampler(BaseSampler):
             has_grad: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         batch_size, nx = len(i_grid), x.shape[-1]
+        # print(f"Selecting subset: batch_size={batch_size}, nx={nx}, size of x={x.shape}")
         if i_t is not None:
             x_tensor = torch.zeros(
                 [self.rho + self.warm_up, batch_size, nx],

@@ -44,7 +44,7 @@ METRIC = 'fhv_abs'
 def fetch_data(config):
     GAGE_ID_PATH = os.getenv("GAGE_INFO")  # ./gage_id.npy
     GAGE_ID_531_PATH = os.getenv("SUBSET_PATH")  # ./531sub_id.txt
-    SHAPEFILE_PATH = r'E:\PaperCode\dpl-project\generic_deltamodel\data\camels_data\camels_loc\camels_671_loc.shp'
+    SHAPEFILE_PATH = os.path.join(os.getenv("PROJ_PATH"), "data\camels_loc\camels_671_loc.shp")
     # ------------------------------------------#
 
     # 1. Load gage ids + basin shapefile with geocoordinates (lat, long) for every gage.
