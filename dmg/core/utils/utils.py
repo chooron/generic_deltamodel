@@ -185,7 +185,7 @@ def save_model(
 
 def save_train_state(
     config: dict[str, Any],
-    epoch: int,
+    epoch: Union[int, str],
     optimizer:torch.nn.Module,
     scheduler: Optional[torch.nn.Module] = None,
     create_dirs: Optional[bool] = False,

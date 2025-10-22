@@ -106,9 +106,9 @@ class Trainer(BaseTrainer):
                 self.use_scheduler = False
 
             # Resume model training by loading prior states.
-            self.start_epoch = self.config['train']['start_epoch'] + 1
-            if self.start_epoch > 1:
-                self.load_states()
+            # self.start_epoch = self.config['train']['start_epoch'] + 1
+            # if self.start_epoch > 1:
+            self.load_states()
 
     def init_optimizer(self) -> torch.optim.Optimizer:
         """Initialize a state optimizer.
@@ -184,7 +184,7 @@ class Trainer(BaseTrainer):
         path = self.config['model_path']
         for file in os.listdir(path):
             # Check for state checkpoint: looks like `train_state_epoch_XX.pt`.
-            if ('train_state' in file) and (str(self.start_epoch - 1) in file):
+            if ('train_state' in file): # and (str(self.start_epoch - 1) in file):
                 # log.info("Loading trainer states --> Resuming Training from" /
                 #          f" epoch {self.start_epoch}")
 
@@ -193,7 +193,8 @@ class Trainer(BaseTrainer):
                 # Restore optimizer states
                 self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                 # # Restore model
-                self.model.load_model(epoch=self.start_epoch - 1)
+                self.model.load_model(epoch=checkpoint['epoch'])
+                self.start_epoch = checkpoint['epoch'] + 1
 
                 if self.scheduler:
                     self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -202,13 +203,10 @@ class Trainer(BaseTrainer):
                 torch.set_rng_state(checkpoint['random_state'])
                 if torch.cuda.is_available() and 'cuda_random_state' in checkpoint:
                     torch.cuda.set_rng_state_all(checkpoint['cuda_random_state'])
+                print(f"Loaded checkpoint from epoch {checkpoint['epoch']}")
                 return
-            elif 'train_state' in file:
-                raise FileNotFoundError(f"Available checkpoint file {file} does" +
-                                        f" not match start epoch {self.start_epoch - 1}.")
-
-        # If no checkpoint file is found for named epoch...
-        raise FileNotFoundError(f"No checkpoint for epoch {self.start_epoch - 1}.")
+            else:
+                self.start_epoch = 1
 
     def train(self) -> None:
         """Train the model."""
@@ -285,13 +283,14 @@ class Trainer(BaseTrainer):
         # Save model and trainer states.
         if epoch % self.config['train']['save_epoch'] == 0:
             self.model.save_model(epoch)
-            save_train_state(
-                self.config,
-                epoch=epoch,
-                optimizer=self.optimizer,
-                scheduler=self.scheduler,
-                clear_prior=True,
-            )
+
+        save_train_state(
+            self.config,
+            epoch='latest',
+            optimizer=self.optimizer,
+            scheduler=self.scheduler,
+            clear_prior=False,
+        )
 
             # if self.config['do_tune']:
             #     # Create temporary checkpoint if needed

@@ -23,8 +23,8 @@ plt.rcParams.update({
     'axes.unicode_minus': False,
 })
 
-lstm_config = load_config(r'conf/config_dhbv_lstm.yaml')
-hopev1_config = load_config(r'conf/config_dhbv_hopev1.yaml')
+lstm_config = load_config(r'conf/config_dhbv_pub_lstm.yaml')
+hopev1_config = load_config(r'conf/config_dhbv_pub_hopev1.yaml')
 lstm_criteria_path = os.path.join(lstm_config['out_path'], 'metrics.json')
 hopev1_criteria_path = os.path.join(hopev1_config['out_path'], 'metrics.json')
 lstm_criteria_df = pd.DataFrame(load_json(lstm_criteria_path))

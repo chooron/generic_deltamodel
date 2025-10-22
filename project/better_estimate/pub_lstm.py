@@ -25,7 +25,7 @@ trainer = trainer_cls(
     verbose=True
 )
 
-# trainer.train()
+trainer.train()
 print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation
