@@ -39,6 +39,8 @@ plot_config = {"xbounds": (0.0, 1),
                "legend_fontsize": 16,
                "ticksize": 18,
                "linewidth": 1.8,
+               "show_count_label":True,
+               "count_threshold":0.6,
                "axis_width": 2.0}
 # 2. Plot the CDF for NSE.
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 5),
