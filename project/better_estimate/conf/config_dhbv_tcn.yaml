@@ -12,9 +12,9 @@
 defaults:
     - _self_
     - hydra: settings
-    - observations: camels_671 # camels_531, camels_671
+    - observations: camels_531 # camels_531, camels_671 
 
-observations: camels_671
+
 ## General -------------------------------#
 mode: train  # train, test, train_test, simulation
 random_seed: 42
@@ -22,9 +22,8 @@ device: cuda
 gpu_id: 0
 
 data_loader: HydroLoader
-data_sampler: PubSampler
-trainer: PubTrainer
-
+data_sampler: HydroSampler
+trainer: Trainer
 
 save_path: project/better_estimate/output
     # NOTE: The output path is relative to the current working directory. 
@@ -35,24 +34,24 @@ trained_model: project/better_estimate/output/model/  # Pretrained dHBV 1.1p can
 
 ## Training ------------------------------#
 train:
-    start_time: 1989/10/01
-    end_time: 1999/09/30
+    start_time: 1980/10/01
+    end_time: 1995/09/30
     target: [streamflow]
     optimizer: Adadelta
     batch_size: 100
-    epochs: 50
+    epochs: 100
     start_epoch: 0
     save_epoch: 5
 
 
 ## Evaluation -------------------------------#
 test:
-    start_time: 1989/10/01
-    end_time: 1999/09/30
-    batch_size: 25
-    test_epoch: 50
-    test_group_id: 6 # change pub id 7 14 没跑
+    start_time: 1995/10/01
+    end_time: 2010/09/30
+    batch_size: 100
+    test_epoch: 100
     split_dataset: True
+
 
 ## Inference -------------------------------#
 simulation:
@@ -97,10 +96,10 @@ delta_model:
         attributes: []
 
     nn_model:
-        model: HopeMlpV1
+        model: TcnMlpModel
         mlp_dropout: 0.5
-        hope_dropout: 0.2
-        hope_hidden_size: 256
+        lstm_dropout: 0.5
+        lstm_hidden_size: 64
         mlp_hidden_size: 256
         learning_rate: 1.0
         lr_scheduler: None

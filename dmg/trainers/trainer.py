@@ -283,14 +283,13 @@ class Trainer(BaseTrainer):
         # Save model and trainer states.
         if epoch % self.config['train']['save_epoch'] == 0:
             self.model.save_model(epoch)
-
-        save_train_state(
-            self.config,
-            epoch='latest',
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-            clear_prior=False,
-        )
+            save_train_state(
+                self.config,
+                epoch=epoch,
+                optimizer=self.optimizer,
+                scheduler=self.scheduler,
+                clear_prior=True,
+            )
 
             # if self.config['do_tune']:
             #     # Create temporary checkpoint if needed
@@ -374,9 +373,9 @@ class Trainer(BaseTrainer):
 
             for key in batch_list[0].keys():
                 if len(batch_list[0][key].shape) == 3:
-                    dim = 1
+                    pass
                 else:
-                    dim = 0
+                    pass
                 data[key] = torch.cat([d[key] for d in batch_list], dim=1).cpu().numpy()
             return data
 

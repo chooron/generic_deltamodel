@@ -48,6 +48,8 @@ train:
 test:
     start_time: 1995/10/01
     end_time: 2010/09/30
+    # start_time: 1980/10/01
+    # end_time: 1995/09/30
     batch_size: 100
     test_epoch: 100
     split_dataset: True

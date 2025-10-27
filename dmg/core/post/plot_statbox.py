@@ -1,8 +1,8 @@
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import List, Optional, Tuple
+
 import matplotlib.patches as mpatches
-from typing import List, Tuple, Optional
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def plot_boxplots(
@@ -18,10 +18,13 @@ def plot_boxplots(
         legend_labels: List[str] = ['Condition A', 'Condition B'],
         label_fontsize: int = 14,
         tick_fontsize: int = 12,
-        xtick_rotation: int = 0
+        xtick_rotation: int = 0,
+        notch: bool = True  # <-- 优化的关键点
 ):
     """
-    出版级风格箱线图（矩形版）
+    绘制出版级风格的分组（缺口）箱线图。
+    - notch=False (默认): 绘制矩形箱线图。
+    - notch=True: 绘制缺口箱线图，用于展示中位数置信区间。
     - 对称坐标轴（四边都有）
     - 右下角 legend，带边框与背景
     """
@@ -37,7 +40,11 @@ def plot_boxplots(
     data_to_plot = []
     positions = []
     colors = [list1_color, list2_color]
-    group_spacing = 3
+    
+    # 定义绘图几何参数
+    group_spacing = 3  # 每组（两个箱）之间的中心距离
+    box_width = 0.55     # 每个箱子的宽度
+    box_offset = 0.45    # 每组中，箱子偏离组中心的距离
 
     for i, (df1, df2) in enumerate(zip(list1, list2)):
         if column_name not in df1.columns or column_name not in df2.columns:
@@ -48,7 +55,7 @@ def plot_boxplots(
         data_to_plot.append(df2[column_name].dropna())
 
         base_position = i * group_spacing
-        positions.extend([base_position - 0.45, base_position + 0.45])
+        positions.extend([base_position - box_offset, base_position + box_offset])
 
     if not data_to_plot:
         print("Warning: No data available for plotting.")
@@ -64,8 +71,9 @@ def plot_boxplots(
 
     bp = ax.boxplot(
         data_to_plot,
+        notch=notch,  # <-- 将 notch 参数传递给 boxplot
         positions=positions,
-        widths=0.55,
+        widths=box_width,
         patch_artist=True,
         boxprops=boxprops,
         medianprops=medianprops,
@@ -118,4 +126,6 @@ def plot_boxplots(
 
     ax.set_xlim(min(positions) - 1, max(positions) + 1)
 
-    plt.tight_layout()
+    # 注意：在函数外部调用 tight_layout() 可能更灵活
+    # plt.tight_layout()    # 注意：在函数外部调用 tight_layout() 可能更灵活
+    # plt.tight_layout()

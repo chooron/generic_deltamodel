@@ -35,6 +35,8 @@ dependencies = [
     "rich>=14.2.0",
     "scienceplots>=2.1.1",
     "captum>=0.7.0",
+    "pytorch-tcn>=1.2.3",
+    "xlstm>=2.0.5",
 ]
 
 [project.optional-dependencies]

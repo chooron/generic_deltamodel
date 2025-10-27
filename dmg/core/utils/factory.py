@@ -213,8 +213,8 @@ def load_nn_model(
         n_attributes = len(config['attributes'])
         ny = len(ensemble_list)
 
-        hidden_size = config['hidden_size']
-        dr = config['dropout']
+        config['hidden_size']
+        config['dropout']
         name = config['model']
     else:
         n_forcings = len(config['nn_model']['forcings'])
@@ -261,7 +261,7 @@ def load_nn_model(
             hidden_size=config['nn_model']['hidden_size'],
             dr=config['nn_model']['dropout'],
         )
-    elif name in ['LstmMlpModel', 'GruMlpModel']:
+    elif name in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel']:
         model = cls(
             nx1=nx,
             ny1=phy_model.learnable_param_count1,
@@ -300,7 +300,7 @@ def load_nn_model(
             transformer_dim_fc=config['nn_model']['transformer_dim_fc'],
             device=device,
         )
-    elif name in ["HopeMlpV1"]:
+    elif name in ["HopeMlpV1", "HopeMlpV2"]:
         model = cls.build_by_config(
             config
         )

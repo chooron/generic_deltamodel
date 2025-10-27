@@ -11,22 +11,22 @@ CONFIG_PATH = r'conf/config_dhbv_hopev1.yaml'
 #------------------------------------------#
 # model training
 config = load_config(CONFIG_PATH)
-config['mode'] = 'train'
-# config['train']['start_epoch'] = 55
-set_randomseed(config['random_seed'])
-model = ModelHandler(config, verbose=True)
-data_loader_cls = import_data_loader(config['data_loader'])
-data_loader = data_loader_cls(config, test_split=True, overwrite=False)
-trainer_cls = import_trainer(config['trainer'])
-trainer = trainer_cls(
-    config,
-    model,
-    train_dataset=data_loader.train_dataset,
-    verbose=True
-)
+# config['mode'] = 'train'
+# # config['train']['start_epoch'] = 55
+# set_randomseed(config['random_seed'])
+# model = ModelHandler(config, verbose=True)
+# data_loader_cls = import_data_loader(config['data_loader'])
+# data_loader = data_loader_cls(config, test_split=True, overwrite=False)
+# trainer_cls = import_trainer(config['trainer'])
+# trainer = trainer_cls(
+#     config,
+#     model,
+#     train_dataset=data_loader.train_dataset,
+#     verbose=True
+# )
 
-trainer.train()
-print(f"Training complete. Model saved to \n{config['model_path']}")
+# trainer.train()
+# print(f"Training complete. Model saved to \n{config['model_path']}")
 
 # model evaluation
 config['mode'] = 'test'

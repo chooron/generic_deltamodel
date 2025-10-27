@@ -1,16 +1,19 @@
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, Subset
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import pickle
-from torchmetrics import R2Score, MeanSquaredError  # 导入R2Score
 import sys
 
-sys.path.append(r"E:\PaperCode\dpl-project\generic_deltamodel")
-from dmg.models.neural_networks.hope import HOPE
-import numpy as np
+import pytorch_lightning as pl
+import torch
+import torch.nn as nn
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from torch.utils.data import DataLoader, Dataset, Subset
+from torchmetrics import MeanSquaredError, R2Score  # 导入R2Score
+
+sys.path.append(r"E:\pycode\generic_deltamodel")
 import os
+
+import numpy as np
+
+from dmg.models.neural_networks.hope import Hope
 
 # 确保结果可复现
 pl.seed_everything(42)
@@ -81,7 +84,14 @@ class CamelsDataModule(pl.LightningDataModule):
         select_target = target[self.basin_idx, :, :]
         select_attribute = attribute[self.basin_idx, :]
         select_basin_area = select_attribute[11]
-        select_target = (10 ** 3) * select_target * 0.0283168 * 3600 * 24 / (select_basin_area * (10 ** 6))
+        select_target = (
+            (10**3)
+            * select_target
+            * 0.0283168
+            * 3600
+            * 24
+            / (select_basin_area * (10**6))
+        )
 
         # 2. 创建完整的Dataset实例
         full_dataset = CamelsTimeSeriesDataset(
@@ -106,13 +116,28 @@ class CamelsDataModule(pl.LightningDataModule):
         self.test_dataset = Subset(full_dataset, test_indices)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=0,
+        )
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=0,
+        )
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=0,
+        )
 
 
 class R2Loss(nn.Module):
@@ -141,12 +166,19 @@ class LitRNN(pl.LightningModule):
     使用 R2Loss 进行优化，并使用 R2Score 进行监控。
     """
 
-    def __init__(self, input_size, hidden_size=64, dropout=0.2, cfg=None,
-                 learning_rate=1e-3, weight_decay=1e-4):
+    def __init__(
+        self,
+        input_size,
+        hidden_size=64,
+        dropout=0.2,
+        cfg=None,
+        learning_rate=1e-3,
+        weight_decay=1e-4,
+    ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = HOPE(
+        self.hope_layer = Hope(
             input_size=input_size,
             hidden_size=hidden_size,
             dropout=dropout,
@@ -159,7 +191,8 @@ class LitRNN(pl.LightningModule):
         self.r2_metric = R2Score()
 
     def forward(self, x):
-        return self.model(x)
+        hope_out = self.hope_layer(x)
+        return hope_out[:, -1, :]
 
     def _shared_step(self, batch):
         x, y = batch
@@ -171,33 +204,37 @@ class LitRNN(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         loss, r2 = self._shared_step(batch)
-        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('train_r2', r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "train_loss", loss, on_step=False, on_epoch=True, prog_bar=True
+        )
+        self.log("train_r2", r2, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         loss, r2 = self._shared_step(batch)
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('val_r2', r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val_r2", r2, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def test_step(self, batch, batch_idx):
         loss, r2 = self._shared_step(batch)
         # 在 test_step 中，我们通常只关心指标，而不是损失
         # 我们将 R2 记录为 test_r2
-        self.log('test_r2', r2, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("test_r2", r2, on_step=False, on_epoch=True, prog_bar=True)
         return r2  # 返回指标值
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(),
-                                     lr=self.hparams.learning_rate,
-                                     weight_decay=self.hparams.weight_decay)
+        optimizer = torch.optim.Adam(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            weight_decay=self.hparams.weight_decay,
+        )
         return optimizer
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # --- 超参数设置 ---
-    DATA_PATH = "E:\PaperCode\dpl-project\generic_deltamodel\data\camels_data\camels_dataset"
+    DATA_PATH = r"E:\pycode\generic_deltamodel\data\camels_dataset"
     BASIN_INDEX = 0
     LAG = 365
     BATCH_SIZE = 256
@@ -212,8 +249,17 @@ if __name__ == '__main__':
     # S4D config
     # lr=min(cfg["lr_min"], cfg["lr"]), d_state=cfg["d_state"], dt_min=cfg["min_dt"],
     # dt_max=cfg["max_dt"], lr_dt=cfg["lr_dt"], cfr=cfg["cfr"], cfi=cfg["cfi"], wd=cfg["wd"])
-    config = {"lr_min": 0.001, "lr": 0.01, "lr_dt": 0.0, "min_dt": 0.001,
-              "max_dt": 1, "wd": 0.0, "d_state": 64, "cfr": 1.0, "cfi": 1.0, }
+    config = {
+        "lr_min": 0.001,
+        "lr": 0.01,
+        "lr_dt": 0.0,
+        "min_dt": 0.001,
+        "max_dt": 0.01,
+        "wd": 0.01,
+        "d_state": 64,
+        "cfr": 1.0,
+        "cfi": 1.0,
+    }
 
     # --- 1. 初始化数据模块 ---
     with open(DATA_PATH, "rb") as f:
@@ -224,7 +270,7 @@ if __name__ == '__main__':
         data_path=DATA_PATH,
         basin_idx=BASIN_INDEX,
         lag=LAG,
-        batch_size=BATCH_SIZE
+        batch_size=BATCH_SIZE,
     )
 
     # --- 2. 初始化模型 ---
@@ -234,23 +280,23 @@ if __name__ == '__main__':
         dropout=DROPOUT,
         cfg=config,
         learning_rate=LEARNING_RATE,
-        weight_decay=WEIGHT_DECAY
+        weight_decay=WEIGHT_DECAY,
     )
 
     # --- 3. 设置回调函数 ---
     early_stop_callback = EarlyStopping(
-        monitor='val_r2',  # 监控验证集 R2 分数
+        monitor="val_r2",  # 监控验证集 R2 分数
         patience=PATIENCE,
         verbose=True,
-        mode='max'  # R2 是越大越好，所以模式是 'max'
+        mode="max",  # R2 是越大越好，所以模式是 'max'
     )
     RNN_TYPE = "HOPE"
     model_checkpoint = ModelCheckpoint(
-        dirpath='checkpoints',
-        filename=f'HOPE-best-{{epoch:02d}}-{{val_r2:.4f}}',
+        dirpath="checkpoints",
+        filename="HOPE-best-{epoch:02d}-{val_r2:.4f}",
         save_top_k=1,
-        monitor='val_r2',  # 监控验证集 R2 分数
-        mode='max'  # 模式是 'max'
+        monitor="val_r2",  # 监控验证集 R2 分数
+        mode="max",  # 模式是 'max'
     )
 
     # --- 4. 初始化训练器并开始训练 ---
@@ -258,17 +304,23 @@ if __name__ == '__main__':
         max_epochs=MAX_EPOCHS,
         callbacks=[early_stop_callback, model_checkpoint],
         # accelerator='gpu' if torch.cuda.is_available() else 'cpu',
-        accelerator='cpu',
+        accelerator="cpu",
         devices=1,
-        logger=pl.loggers.TensorBoardLogger("logs/", name=f"{RNN_TYPE}_model_R2")
+        logger=pl.loggers.TensorBoardLogger(
+            "logs/", name=f"{RNN_TYPE}_model_R2"
+        ),
     )
 
-    print(f"--- Starting training for {RNN_TYPE} model with R2 optimization ---")
+    print(
+        f"--- Starting training for {RNN_TYPE} model with R2 optimization ---"
+    )
     trainer.fit(model=lit_model, datamodule=dm)
 
     # --- 5. 使用最优模型评估三个数据集的拟合精度 ---
     print("\n" + "=" * 50)
-    print("--- Training finished. Evaluating the best model on all datasets. ---")
+    print(
+        "--- Training finished. Evaluating the best model on all datasets. ---"
+    )
     best_model_path = model_checkpoint.best_model_path
 
     if not best_model_path:
@@ -287,14 +339,20 @@ if __name__ == '__main__':
 
     # 在 Trainer 中运行评估
     # verbose=False 可以让输出更简洁
-    train_results = trainer.test(model=best_model, dataloaders=train_loader, verbose=False)
-    val_results = trainer.test(model=best_model, dataloaders=val_loader, verbose=False)
-    test_results = trainer.test(model=best_model, dataloaders=test_loader, verbose=False)
+    train_results = trainer.test(
+        model=best_model, dataloaders=train_loader, verbose=False
+    )
+    val_results = trainer.test(
+        model=best_model, dataloaders=val_loader, verbose=False
+    )
+    test_results = trainer.test(
+        model=best_model, dataloaders=test_loader, verbose=False
+    )
 
     # 提取并打印 R2 分数
-    train_r2 = train_results[0]['test_r2']
-    val_r2 = val_results[0]['test_r2']
-    test_r2 = test_results[0]['test_r2']
+    train_r2 = train_results[0]["test_r2"]
+    val_r2 = val_results[0]["test_r2"]
+    test_r2 = test_results[0]["test_r2"]
 
     print("\n--- Final Model Fitting Accuracy (R²) ---")
     print(f"Training Set R²:   {train_r2:.4f}")

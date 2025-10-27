@@ -186,14 +186,13 @@ class PubTrainer(BaseTrainer):
 
         if epoch % self.config["train"]["save_epoch"] == 0:
             self.model.save_model(epoch)
-            
-        save_train_state(
-            self.config,
-            epoch='latest',
-            optimizer=self.optimizer,
-            scheduler=self.scheduler,
-            clear_prior=False,
-        )
+            save_train_state(
+                self.config,
+                epoch=epoch,
+                optimizer=self.optimizer,
+                scheduler=self.scheduler,
+                clear_prior=False,
+            )
 
     def evaluate(self) -> None:
         """

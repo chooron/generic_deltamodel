@@ -1,7 +1,9 @@
 import hashlib
 import json
 import os
+
 from dotenv import load_dotenv
+
 load_dotenv()
 from typing import Any
 
@@ -120,7 +122,7 @@ class PathBuilder(BaseModel):
         else:
             raise ValueError(f"Invalid mode: {self.config['mode']}")
 
-    def write_path (self, config: dict[str, Any]) -> dict:
+    def write_path(self, config: dict[str, Any]) -> dict:
         """Create directory where model and outputs will be saved.
 
         Creates all root directories to support the target directory.
@@ -387,7 +389,7 @@ class PathBuilder(BaseModel):
             warmup = 'WU'
 
         # Set hiddensize for single or multi-NN setups.
-        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel', 'GruMlpModel']:
+        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel']:
             hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
                             f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
         elif config['delta_model']['nn_model']['model'].startswith('DualAttnLstmV'):

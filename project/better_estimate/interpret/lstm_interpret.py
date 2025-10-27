@@ -1,16 +1,17 @@
 import os
 import sys
+
 import matplotlib.pyplot as plt
+from captum.attr import IntegratedGradients
 from dotenv import load_dotenv
 
-from dmg import ModelHandler
-from dmg.core.data.loaders import HydroLoader
-from dmg.core.utils import import_data_loader, import_trainer
-
 load_dotenv()
-
 sys.path.append(os.getenv("PROJ_PATH"))
-from project.better_estimate import load_config
+
+from dmg import ModelHandler  # noqa
+from dmg.core.data.loaders import HydroLoader  # noqa
+from dmg.core.utils import import_trainer  # noqa
+from project.better_estimate import load_config  # noqa
 
 font_family = 'Times New Roman'
 plt.rcParams.update({
@@ -38,6 +39,12 @@ trainer = trainer_cls(
     verbose=True,
 )
 lstm_model = trainer.model.model_dict['Hbv_2'].nn_model
-lstm_model.eval()
-test_data = (eval_dataset['xc_nn_norm'][0:730, :, :], eval_dataset['xc_nn_norm'][:, :])
-est_output = lstm_model(*test_data)
+lstm_layer = lstm_model.lstminv
+# print("LSTM model structure:", lstm_model)
+# lstm_model.eval()
+# test_data = (eval_dataset['xc_nn_norm'][0:730, :, :], eval_dataset['c_nn_norm'][:, :])
+# print("Test data shapes:", test_data[0].shape, test_data[1].shape)
+# est_output = lstm_model(*test_data)
+
+ig = IntegratedGradients(lstm_layer)
+attributions, delta = ig.attribute(eval_dataset['xc_nn_norm'][0:730, :, :], return_convergence_delta=True)
