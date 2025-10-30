@@ -41,7 +41,7 @@ train:
     batch_size: 100
     epochs: 100
     start_epoch: 0
-    save_epoch: 1
+    save_epoch: 5
 
 
 ## Evaluation -------------------------------#
@@ -96,7 +96,7 @@ delta_model:
         attributes: []
 
     nn_model:
-        model: TcnMlpModel
+        model: TSMixerMlpModel
         mlp_dropout: 0.5
         lstm_dropout: 0.5
         lstm_hidden_size: 64

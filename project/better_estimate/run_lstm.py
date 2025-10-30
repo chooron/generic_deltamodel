@@ -1,9 +1,18 @@
+import os
 import sys
 
-sys.path.append(r'E:\pycode\generic_deltamodel')
-from dmg import ModelHandler
-from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
-from project.better_estimate import load_config
+from dotenv import load_dotenv
+
+load_dotenv()
+
+sys.path.append(os.getenv("PROJ_PATH"))  # type: ignore
+from dmg import ModelHandler  # noqa: E402
+from dmg.core.utils import (  # noqa: E402
+    import_data_loader,
+    import_trainer,
+    set_randomseed,
+)
+from project.better_estimate import load_config  # noqa: E402
 
 #------------------------------------------#
 # Define model settings here.

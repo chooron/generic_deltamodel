@@ -99,8 +99,8 @@ delta_model:
     nn_model:
         model: HopeMlpV2
         mlp_dropout: 0.5
-        hope_dropout: 0.2
-        hope_hidden_size: 256
+        hope_dropout: 0.5
+        hope_hidden_size: 128
         mlp_hidden_size: 256
         learning_rate: 1.0
         lr_scheduler: None

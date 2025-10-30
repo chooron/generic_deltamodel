@@ -84,6 +84,6 @@ class VanillaTransformerMlpModel(torch.nn.Module):
             The LSTM and MLP output tensors.
         """
         z1_permute = torch.permute(z1, (1, 0, 2))
-        transfomer_out = self.transfomerinv(z1_permute).permute(1, 0, 2)  # dim: timesteps, gages, params
+        transfomer_out = self.transfomerinv(z1_permute).permute(1, 0, 2)
         ann_out = self.ann(z2)
-        return F.sigmoid(transfomer_out), F.sigmoid(ann_out)
+        return (F.tanh(transfomer_out) + 1) / 2, F.sigmoid(ann_out)

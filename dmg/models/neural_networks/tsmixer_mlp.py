@@ -3,12 +3,11 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch_tcn import TCN
-
+from torchtsmixer import TSMixer
 from dmg.models.neural_networks.ann import AnnModel
 
 
-class TcnMlpModel(torch.nn.Module):
+class TSMixerMlpModel(torch.nn.Module):
     """LSTM-MLP model for multi-scale learning.
 
     Supports GPU and CPU forwarding.
@@ -49,30 +48,16 @@ class TcnMlpModel(torch.nn.Module):
         device: Optional[str] = "cpu",
     ) -> None:
         super().__init__()
-        self.name = "LstmMlpModel"
+        self.name = "TSMixerMlpModel"
 
-        self.tcninv = nn.Sequential(
-            nn.Linear(nx1, hiddeninv1),
-            TCN(
-                num_inputs=hiddeninv1,
-                num_channels=[hiddeninv1] * 8,
-                kernel_size=4,
-                dilations=None,
-                dilation_reset=None,
-                dropout=0.1,
-                causal=True,
-                use_norm="weight_norm",
-                activation="leaky_relu",
-                kernel_initializer="xavier_uniform",
-                use_skip_connections=True,
-                input_shape="NLC",
-                output_projection=None,
-                output_activation=None,
-            ),
+        self.tsmixesinv = TSMixer(
+            730,
+            730,
+            nx1,
+            hiddeninv1,
+            dropout_rate=0.2,
         )
-        self.ln = nn.LayerNorm(hiddeninv1)
-        self.tncdrop = nn.Dropout(dr1)
-        self.a = 0.2
+        self.drop = nn.Dropout(dr1)
         self.fc = nn.Linear(hiddeninv1, ny1)
         self.ann = AnnModel(
             nx=nx2,
@@ -100,10 +85,9 @@ class TcnMlpModel(torch.nn.Module):
         tuple
             The LSTM and MLP output tensors.
         """
-        tcn_out = self.tcninv(
+        tcn_out = self.tsmixesinv(
             z1.permute(1, 0, 2)
         )  # dim: timesteps, gages, params
-        tcn_out = self.ln(tcn_out)
-        fc_out = self.fc(self.tncdrop(tcn_out).permute(1, 0, 2))
+        fc_out = self.fc(self.drop(tcn_out).permute(1, 0, 2))
         ann_out = self.ann(z2)
-        return F.sigmoid(fc_out*self.a), F.sigmoid(ann_out)
+        return F.sigmoid(fc_out), F.sigmoid(ann_out)

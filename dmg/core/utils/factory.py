@@ -219,8 +219,7 @@ def load_nn_model(
     else:
         n_forcings = len(config['nn_model']['forcings'])
         n_attributes = len(config['nn_model']['attributes'])
-        n_phy_params = phy_model.learnable_param_count
-        ny = n_phy_params
+        ny = phy_model.learnable_param_count
 
         name = config['nn_model']['model']
 
@@ -228,9 +227,9 @@ def load_nn_model(
 
     # update config
     config['nn_model']['nx1'] = nx
-    config['nn_model']['ny1'] = phy_model.learnable_param_count1
+    config['nn_model']['ny1'] = getattr(phy_model, 'learnable_param_count1', ny)
     config['nn_model']['nx2'] = n_attributes
-    config['nn_model']['ny2'] = phy_model.learnable_param_count2
+    config['nn_model']['ny2'] = getattr(phy_model, 'learnable_param_count2', ny)
     config['nn_model']['device'] = device
 
     # Dynamically retrieve the model
@@ -248,6 +247,14 @@ def load_nn_model(
             hidden_size=config['nn_model']['hidden_size'],
             dr=config['nn_model']['dropout'],
         )
+    elif name in ['HopeModel', 'Hope']:
+        model = cls(
+            nx,
+            output_size=ny,
+            hidden_size=config['nn_model']['hidden_size'],
+            n_layers=config['nn_model']['n_layers'], # 4 -> 3
+            dropout=config['nn_model']['dropout'],
+        )
     elif name in ['MLP']:
         model = cls(
             config,
@@ -261,7 +268,7 @@ def load_nn_model(
             hidden_size=config['nn_model']['hidden_size'],
             dr=config['nn_model']['dropout'],
         )
-    elif name in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel']:
+    elif name in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel', 'TSMixerMlpModel']:
         model = cls(
             nx1=nx,
             ny1=phy_model.learnable_param_count1,

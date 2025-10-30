@@ -366,6 +366,7 @@ class Hbv_2(torch.nn.Module):
         tosoil_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
         PERC_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
         SWE_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
+        SM_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
         capillary_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
 
         param_dict = {}
@@ -454,6 +455,8 @@ class Hbv_2(torch.nn.Module):
             evapfactor_sim[t, :, :] = evapfactor
             tosoil_sim[t, :, :] = tosoil
             PERC_sim[t, :, :] = PERC
+            
+            SM_sim[t, :, :] = SM
 
         # Get the overall average
         # or weighted average using learned weights.
@@ -530,6 +533,7 @@ class Hbv_2(torch.nn.Module):
                 'evapfactor': evapfactor_sim.mean(-1, keepdim=True),  # Evaporation factor
                 'tosoil': tosoil_sim.mean(-1, keepdim=True),  # Infiltration
                 'percolation': PERC_sim.mean(-1, keepdim=True),  # Percolation
+                'soilwater': SM_sim.mean(-1, keepdim=True),  # SM
                 'capillary': capillary_sim.mean(-1, keepdim=True),  # Capillary rise
                 # 'BFI': BFI_sim,  # Baseflow index
             }

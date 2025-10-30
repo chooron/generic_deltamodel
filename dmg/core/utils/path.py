@@ -313,7 +313,8 @@ class PathBuilder(BaseModel):
         """
         models = config['delta_model']['phy_model']['model']
         parameters = config['delta_model']['phy_model']['dynamic_params']
-
+        if len(parameters) == 0:
+            return ''
         param_str = '_'.join(
             param for model in models for param in parameters.get(model, [])
         )
@@ -389,7 +390,7 @@ class PathBuilder(BaseModel):
             warmup = 'WU'
 
         # Set hiddensize for single or multi-NN setups.
-        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel']:
+        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel', 'TSMixerMlpModel']:
             hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
                             f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
         elif config['delta_model']['nn_model']['model'].startswith('DualAttnLstmV'):

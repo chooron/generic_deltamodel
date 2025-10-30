@@ -41,7 +41,7 @@ train:
     batch_size: 100
     epochs: 100
     start_epoch: 0
-    save_epoch: 1
+    save_epoch: 5
 
 
 ## Evaluation -------------------------------#
@@ -51,7 +51,6 @@ test:
     batch_size: 100
     test_epoch: 100
     split_dataset: True
-
 
 ## Inference -------------------------------#
 simulation:
@@ -76,17 +75,12 @@ delta_model:
         # Unseen Extreme Events." ESS Open Archive (2025).
         # https://doi.org/10.22541/essoar.172304428.82707157/v2.
 
-        model: [Hbv_2]
-        nmul: 16
+        model: [Identity]
         warm_up: 365
         warm_up_states: False
-        dy_drop: 0.0
-        dynamic_params:
-            Hbv_2: [parBETA, parK0, parBETAET]
-
-        routing: True
         use_log_norm: []
-        nearzero: 1e-5
+        dynamic_params: []
+        nmul: 1
 
         forcings: [
             prcp,
@@ -96,11 +90,10 @@ delta_model:
         attributes: []
 
     nn_model:
-        model: TcnMlpModel
-        mlp_dropout: 0.5
-        lstm_dropout: 0.5
-        lstm_hidden_size: 64
-        mlp_hidden_size: 256
+        model: Hope
+        dropout: 0.2
+        hidden_size: 256
+        n_layers: 4
         learning_rate: 1.0
         lr_scheduler: None
         lr_scheduler_params:

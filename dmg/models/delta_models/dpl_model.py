@@ -124,6 +124,7 @@ class DplModel(torch.nn.Module):
             "LstmMlpModel",
             "GruMlpModel",
             "TcnMlpModel",
+            "TSMixerMlpModel",
             "AttentionLstm",
             "HopeMlpV1",
             "HopeMlpV2",

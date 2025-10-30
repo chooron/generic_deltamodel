@@ -16,7 +16,7 @@ from project.better_estimate import load_config  # noqa: E402
 
 # ------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = r"conf/config_dhbv_hopev2.yaml"
+CONFIG_PATH = r"conf/config_pure_hope.yaml"
 # ------------------------------------------#
 # model training
 config = load_config(CONFIG_PATH)

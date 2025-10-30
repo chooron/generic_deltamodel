@@ -1,20 +1,23 @@
-import sys
 import os
+import sys
+
 from dotenv import load_dotenv
+
 load_dotenv()
 
-sys.path.append(os.getenv("PROJ_PATH"))
-from dmg import ModelHandler
-from dmg.core.utils import import_data_loader, import_trainer, set_randomseed
-from project.better_estimate import load_config
+sys.path.append(os.getenv("PROJ_PATH"))  # type: ignore
+from dmg import ModelHandler # noqa: E402
+from dmg.core.utils import import_data_loader, import_trainer, set_randomseed # noqa: E402
+from project.better_estimate import load_config # noqa: E402
 
 #------------------------------------------#
 # Define model settings here.
-CONFIG_PATH = r'conf/config_dhbv_transformer.yaml'
+CONFIG_PATH = r'conf/config_dhbv_tsmixer.yaml'
 #------------------------------------------#
 # model training
 config = load_config(CONFIG_PATH)
 config['mode'] = 'train'
+# config['train']['start_epoch'] = 75
 set_randomseed(config['random_seed'])
 model = ModelHandler(config, verbose=True)
 data_loader_cls = import_data_loader(config['data_loader'])

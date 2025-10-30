@@ -4,6 +4,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from einops import rearrange, repeat
 
 if tuple(map(int, torch.__version__.split(".")[:2])) == (1, 11):
@@ -129,6 +130,7 @@ class S4D(nn.Module):
         cfi=1,
         transposed=True,
         use_gated=False,
+        out_activation="tanh",
         **kernel_args,
     ):
         super().__init__()
@@ -149,8 +151,8 @@ class S4D(nn.Module):
         self.kernel = S4DKernel(self.h, cfr, cfi, N=self.n, **kernel_args)
 
         # Pointwise
-        # self.activation = nn.GELU() # config v1
-        self.activation = nn.Tanh() # config v2
+        self.activation = nn.GELU() # config v1
+        # self.activation = nn.Tanh()  # config v2
         # dropout_fn = nn.Dropout2d # NOTE: bugged in PyTorch 1.11
         dropout_fn = DropoutNd
         self.dropout = dropout_fn(dropout) if dropout > 0.0 else nn.Identity()
@@ -161,15 +163,16 @@ class S4D(nn.Module):
             nn.init.xavier_uniform_(self.gate.weight)
 
         # position-wise output transform to mix features
-        # self.output_linear = nn.Sequential(
-        #     nn.Conv1d(self.h, 2 * self.h, kernel_size=1),
-        #     nn.GLU(dim=-2),
-        # )
-
-        self.output_linear = nn.Sequential(
-            nn.Conv1d(self.h, self.h, kernel_size=1),
-            nn.Tanh(),
-        )
+        if out_activation == "glu":
+            self.output_linear = nn.Sequential(
+                nn.Conv1d(self.h, 2 * self.h, kernel_size=1),
+                nn.GLU(dim=-2),
+            )
+        elif out_activation == "tanh":
+            self.output_linear = nn.Sequential(
+                nn.Conv1d(self.h, self.h, kernel_size=1),
+                nn.Tanh(),
+            )
 
     def forward(
         self, u, **kwargs
@@ -196,7 +199,7 @@ class S4D(nn.Module):
 
         if self.use_gated:
             g = torch.sigmoid(self.gate(y))  # (B, H, L)
-            y = g * y + (1 - g) * u          # gated residual fusion
+            y = g * y + (1 - g) * u  # gated residual fusion
 
         if not self.transposed:
             y = y.transpose(-1, -2)
@@ -212,7 +215,7 @@ class Hope(nn.Module):
         input_size,
         output_size=1,
         hidden_size=256,
-        n_layers=3, # 4 -> 3
+        n_layers=2,  # 4 -> 3
         dropout=0.1,
         cfg=None,
         prenorm=False,
@@ -239,12 +242,13 @@ class Hope(nn.Module):
                 "lr": 0.01,
                 "lr_dt": 0.0,
                 "min_dt": 0.001,
-                "max_dt": 0.01, # change to 0.01
-                "wd": 0.01, # change to 0.01
+                "max_dt": 0.01,  # change to 0.01
+                "wd": 0.01,  # change to 0.01
                 "d_state": 64,
                 "cfr": 1.0,
                 "cfi": 1.0,
                 "use_gated": True,
+                "out_activation": "tanh",
             }
 
         for _ in range(n_layers):
@@ -261,6 +265,7 @@ class Hope(nn.Module):
                     cfr=cfg["cfr"],
                     cfi=cfg["cfi"],
                     wd=cfg["wd"],
+                    out_activation=cfg["out_activation"],
                     use_gated=cfg["use_gated"],
                 )
             )
@@ -270,7 +275,6 @@ class Hope(nn.Module):
 
         # Linear decoder
         self.decoder = nn.Linear(hidden_size, output_size)
-
         # self.lnorm = torch.nn.LayerNorm(365)
         # self.att = SelfAttentionLayer(365) #20240626 remove attention
 
@@ -309,10 +313,9 @@ class Hope(nn.Module):
                 # Postnorm
                 x = norm(x)
 
-        x = x.transpose(-1, -2)
-
         # Pooling: average pooling over the sequence length
         # x = x.mean(dim=1)
+        x = x.transpose(-1, -2)
 
         # Decode the outputs
         x = self.decoder(x)  # (B, d_model) -> (B, d_output)

@@ -1,9 +1,10 @@
 from typing import Any, Optional, Union
 
 import torch
+import torch.nn as nn
 
 
-class HydroIndentity(torch.nn.Module):
+class Identity(torch.nn.Module):
     def __init__(
         self,
         config: Optional[dict[str, Any]] = None,
@@ -24,9 +25,8 @@ class HydroIndentity(torch.nn.Module):
         self.parameter_bounds = {}
         self.phy_param_names = self.parameter_bounds.keys()
         self.learnable_param_count = 1
-        self.learnable_param_count1 = 1
-        self.learnable_param_count2 = 0
-
+        self.fc_layer = nn.ReLU()
+        self.dynamic_params = []
         if not device:
             self.device = torch.device(
                 "cuda" if torch.cuda.is_available() else "cpu"
@@ -39,13 +39,6 @@ class HydroIndentity(torch.nn.Module):
                 "warm_up_states", self.warm_up_states
             )
             self.dy_drop = config.get("dy_drop", self.dy_drop)
-            self.dynamic_params = config["dynamic_params"].get(
-                self.__class__.__name__, self.dynamic_params
-            )
-            self.variables = config.get("variables", self.variables)
-            self.routing = config.get("routing", self.routing)
-            self.comprout = config.get("comprout", self.comprout)
-            self.nearzero = config.get("nearzero", self.nearzero)
             self.nmul = config.get("nmul", self.nmul)
 
     def forward(
@@ -74,4 +67,4 @@ class HydroIndentity(torch.nn.Module):
             # No state warm up - run the full model for warm_up days.
             self.pred_cutoff = self.warm_up
 
-        return {"streamflow": parameters}
+        return {"streamflow": self.fc_layer(parameters[self.warm_up :, :, :])}

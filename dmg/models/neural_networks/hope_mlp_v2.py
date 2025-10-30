@@ -1,11 +1,25 @@
 from typing import Optional
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 from dmg.models.neural_networks.ann import AnnModel
 from dmg.models.neural_networks.hope import Hope
 
+class GaussianSmoother(nn.Module):
+    def __init__(self, channels, kernel_size=9, sigma=2.0):
+        super().__init__()
+        half = kernel_size // 2
+        x = torch.arange(-half, half + 1).float()
+        k = torch.exp(-0.5 * (x / sigma) ** 2)
+        k = k / k.sum()
+        k = k.view(1, 1, kernel_size).repeat(channels, 1, 1)
+        self.register_buffer("kernel", k)
+
+    def forward(self, x):  # x: (B, C, L)
+        pad = self.kernel.size(-1) // 2
+        return F.conv1d(x, self.kernel, padding=pad, groups=x.size(1))
 
 class HopeMlpV2(torch.nn.Module):
     def __init__(
@@ -33,7 +47,8 @@ class HopeMlpV2(torch.nn.Module):
             "d_state": 64,
             "cfr": 1.0,
             "cfi": 1.0,
-            "use_gated": True,
+            "use_gated": False,
+            "out_activation": 'glu',
         }
         self.hope_layer = Hope(
             input_size=nx1,
@@ -41,8 +56,10 @@ class HopeMlpV2(torch.nn.Module):
             hidden_size=hiddeninv1,
             dropout=dr1,
             cfg=config,
-            n_layers=4,
+            prenorm=True,
+            n_layers=2,
         )
+        self.smoother = GaussianSmoother(channels=output_size, kernel_size=15, sigma=2.0)
         self.ann = AnnModel(
             nx=nx2,
             ny=ny2,
@@ -88,6 +105,7 @@ class HopeMlpV2(torch.nn.Module):
         )  # dim: timesteps, gages, params
         ann_out = self.ann(z2)
         hope_out = F.sigmoid(hope_out)
+        hope_out = self.smoother(hope_out.transpose(1, 2)).transpose(1, 2)
         ann_out = F.sigmoid(ann_out)
         # print(hope_out.shape, ann_out.shape)
         return torch.permute(hope_out, (1, 0, 2)), ann_out

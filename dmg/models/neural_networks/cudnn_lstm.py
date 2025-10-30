@@ -120,43 +120,24 @@ class CudnnLstm(torch.nn.Module):
         else:
             weight = [self.w_ih, self.w_hh, self.b_ih, self.b_hh]
 
-        if torch.__version__ < "1.8":
-            output, hy, cy, reserve, new_weight_buf = torch._cudnn_rnn(
-                input,
-                weight,
-                4,
-                None,
-                hx,
-                cx,
-                2,  # 2 means LSTM
-                self.hidden_size,
-                1,
-                False,
-                0,
-                self.training,
-                False,
-                (),
-                None,
-            )
-        else:
-            output, hy, cy, reserve, new_weight_buf = torch._cudnn_rnn(
-                input,
-                weight,
-                4,
-                None,
-                hx,
-                cx,
-                2,  # 2 means LSTM
-                self.hidden_size,
-                0,
-                1,
-                False,
-                0,
-                self.training,
-                False,
-                (),
-                None,
-            )
+        output, hy, cy, reserve, new_weight_buf = torch._cudnn_rnn(
+            input,
+            weight,
+            4,
+            None,
+            hx,
+            cx,
+            2,  # 2 means LSTM
+            self.hidden_size,
+            0,
+            1,
+            False,
+            0,
+            self.training,
+            False,
+            (),
+            None,
+        )
         return output, (hy, cy)
 
     @property
