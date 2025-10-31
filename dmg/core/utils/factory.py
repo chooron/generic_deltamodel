@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 
 from dmg.core.utils.utils import camel_to_snake
 
-sys.path.append('../dmg/')  # for tutorials
+sys.path.append("../dmg/")  # for tutorials
 
 import numpy as np
 
@@ -19,12 +19,12 @@ log = logging.getLogger(__name__)
 # ------------------------------------------#
 # If directory structure changes, update these module paths.
 # NOTE: potentially move these to a framework config for easier access.
-loader_dir = 'core/data/loaders'
-sampler_dir = 'core/data/samplers'
-trainer_dir = 'trainers'
-loss_func_dir = 'models/criterion'
-phy_model_dir = 'models/phy_models'
-nn_model_dir = 'models/neural_networks'
+loader_dir = "core/data/loaders"
+sampler_dir = "core/data/samplers"
+trainer_dir = "trainers"
+loss_func_dir = "models/criterion"
+phy_model_dir = "models/phy_models"
+nn_model_dir = "models/neural_networks"
 
 
 # ------------------------------------------#
@@ -32,7 +32,7 @@ nn_model_dir = 'models/neural_networks'
 
 def get_dir(dir_name: str) -> Path:
     """Get the path for the given directory name."""
-    dir = Path('../../' + dir_name)
+    dir = Path("../../" + dir_name)
     if not os.path.exists(dir):
         dir = Path(os.path.dirname(os.path.abspath(__file__)))
         dir = dir.parent.parent / dir_name
@@ -40,9 +40,9 @@ def get_dir(dir_name: str) -> Path:
 
 
 def load_component(
-        class_name: str,
-        directory: str,
-        base_class: type,
+    class_name: str,
+    directory: str,
+    base_class: type,
 ) -> type:
     """
     Generalized loader function to dynamically import components.
@@ -62,7 +62,7 @@ def load_component(
         The uninstantiated class.
     """
     # Remove the 'Model' suffix from class name if present
-    if class_name.endswith('Model'):
+    if class_name.endswith("Model"):
         class_name_without_model = class_name[:-5]
     else:
         class_name_without_model = class_name
@@ -80,7 +80,9 @@ def load_component(
         sys.modules[class_name] = module
         spec.loader.exec_module(module)
     except FileNotFoundError as e:
-        raise ImportError(f"Component '{class_name}' not found in '{source}'.") from e
+        raise ImportError(
+            f"Component '{class_name}' not found in '{source}'."
+        ) from e
 
     # Confirm class is in the module and matches the base class.
     if hasattr(module, class_name):
@@ -89,7 +91,8 @@ def load_component(
             return class_obj
 
     raise ImportError(
-        f"Class '{class_name}' not found in module '{os.path.relpath(source)}' or does not subclass '{base_class.__name__}'.")
+        f"Class '{class_name}' not found in module '{os.path.relpath(source)}' or does not subclass '{base_class.__name__}'."
+    )
 
 
 def import_phy_model(model: str, ver_name: str = None) -> type:
@@ -109,6 +112,7 @@ def import_phy_model(model: str, ver_name: str = None) -> type:
 def import_data_loader(name: str) -> type:
     """Loads a data loader dynamically."""
     from dmg.core.data.loaders.base import BaseLoader
+
     return load_component(
         name,
         loader_dir,
@@ -119,6 +123,7 @@ def import_data_loader(name: str) -> type:
 def import_data_sampler(name: str) -> type:
     """Loads a data sampler dynamically."""
     from dmg.core.data.samplers.base import BaseSampler
+
     return load_component(
         name,
         sampler_dir,
@@ -129,6 +134,7 @@ def import_data_sampler(name: str) -> type:
 def import_trainer(name: str) -> type:
     """Loads a trainer dynamically."""
     from dmg.trainers.base import BaseTrainer
+
     return load_component(
         name,
         trainer_dir,
@@ -137,10 +143,10 @@ def import_trainer(name: str) -> type:
 
 
 def load_criterion(
-        y_obs: NDArray[np.float32],
-        config: dict[str, Any],
-        name: Optional[str] = None,
-        device: Optional[str] = 'cpu',
+    y_obs: NDArray[np.float32],
+    config: dict[str, Any],
+    name: Optional[str] = None,
+    device: Optional[str] = "cpu",
 ) -> torch.nn.Module:
     """Dynamically load and initialize a loss function module by name.
 
@@ -162,8 +168,8 @@ def load_criterion(
         The initialized loss function object.
     """
     if not name:
-        name = config['model']
-
+        name = config["model"]
+        
     # Load the loss function dynamically using the factory.
     cls = load_component(
         name,
@@ -179,10 +185,10 @@ def load_criterion(
 
 
 def load_nn_model(
-        phy_model: torch.nn.Module,
-        config: dict[str, dict[str, Any]],
-        ensemble_list: Optional[list] = None,
-        device: Optional[str] = None,
+    phy_model: torch.nn.Module,
+    config: dict[str, dict[str, Any]],
+    ensemble_list: Optional[list] = None,
+    device: Optional[str] = None,
 ) -> torch.nn.Module:
     """
     Initialize a neural network.
@@ -205,113 +211,32 @@ def load_nn_model(
         An initialized neural network.
     """
     if not device:
-        device = config.get('device', 'cpu')
+        device = config.get("device", "cpu")
 
-    # Number of inputs 'x' and outputs 'y' for the nn.
-    if ensemble_list:
-        n_forcings = len(config['forcings'])
-        n_attributes = len(config['attributes'])
-        ny = len(ensemble_list)
-
-        config['hidden_size']
-        config['dropout']
-        name = config['model']
-    else:
-        n_forcings = len(config['nn_model']['forcings'])
-        n_attributes = len(config['nn_model']['attributes'])
-        ny = phy_model.learnable_param_count
-
-        name = config['nn_model']['model']
-
-    nx = n_forcings + n_attributes
-
+    n_forcings = len(config["nn_model"]["forcings"])
+    n_attributes = len(config["nn_model"]["attributes"])
+    ny = phy_model.learnable_param_count
     # update config
-    config['nn_model']['nx1'] = nx
-    config['nn_model']['ny1'] = getattr(phy_model, 'learnable_param_count1', ny)
-    config['nn_model']['nx2'] = n_attributes
-    config['nn_model']['ny2'] = getattr(phy_model, 'learnable_param_count2', ny)
-    config['nn_model']['device'] = device
+    config["nn_model"]["nx"] = n_forcings + n_attributes
+    config["nn_model"]["nx1"] = n_forcings
+    config["nn_model"]["nx2"] = n_attributes
+    config["nn_model"]["ny"] = phy_model.learnable_param_count
+    config["nn_model"]["ny1"] = getattr(phy_model, "learnable_param_count1", ny)
+    config["nn_model"]["ny2"] = getattr(phy_model, "learnable_param_count2", ny)
+
+    if "directory" in config["nn_model"].keys():
+        tmp_nn_model_dir = os.path.join(
+            os.getenv("PROJ_PATH"), config["nn_model"]["directory"]
+        )
+    else:
+        tmp_nn_model_dir = nn_model_dir
 
     # Dynamically retrieve the model
     cls = load_component(
-        name,
-        nn_model_dir,
+        config["nn_model"]["model"],
+        tmp_nn_model_dir,
         torch.nn.Module,
     )
 
-    # Initialize the model with the appropriate parameters
-    if name in ['CudnnLstmModel', 'LstmModel']:
-        model = cls(
-            nx=nx,
-            ny=ny,
-            hidden_size=config['nn_model']['hidden_size'],
-            dr=config['nn_model']['dropout'],
-        )
-    elif name in ['HopeModel', 'Hope']:
-        model = cls(
-            nx,
-            output_size=ny,
-            hidden_size=config['nn_model']['hidden_size'],
-            n_layers=config['nn_model']['n_layers'], # 4 -> 3
-            dropout=config['nn_model']['dropout'],
-        )
-    elif name in ['MLP']:
-        model = cls(
-            config,
-            nx=nx,
-            ny=ny,
-        )
-    elif name in ['AnnModel']:
-        model = cls(
-            nx=n_attributes,
-            ny=ny,
-            hidden_size=config['nn_model']['hidden_size'],
-            dr=config['nn_model']['dropout'],
-        )
-    elif name in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel', 'TSMixerMlpModel']:
-        model = cls(
-            nx1=nx,
-            ny1=phy_model.learnable_param_count1,
-            hiddeninv1=config['nn_model']['lstm_hidden_size'],
-            nx2=n_attributes,
-            ny2=phy_model.learnable_param_count2,
-            hiddeninv2=config['nn_model']['mlp_hidden_size'],
-            dr1=config['nn_model']['lstm_dropout'],
-            dr2=config['nn_model']['mlp_dropout'],
-            device=device,
-        )
-    elif name in ["DualAttnLstmV1", "DualAttnLstmV2", "DualAttnLstmV3", "DualAttnLstmV4", "DualAttnLstmV5"]:
-        model = cls(
-            seq_input_dim=n_forcings,
-            static_dim=n_attributes,
-            lstm_hidden_dim=config['nn_model']['lstm_hidden_size'],
-            lstm_out_dim=phy_model.learnable_param_count1,
-            mlp_hidden_dim=config['nn_model']['mlp_hidden_size'],
-            mlp_out_dim=phy_model.learnable_param_count2,
-            mlp_dr=config['nn_model']['mlp_dropout'],
-            lstm_dr=config['nn_model']['lstm_dropout'],
-            hru_num=config['phy_model']['nmul'],
-        )
-    elif name in ["VanillaTransformerMlpModel"]:
-        model = cls(
-            nx1=nx,
-            ny1=phy_model.learnable_param_count1,
-            hiddeninv1=config['nn_model']['transformer_d_model'],
-            nx2=n_attributes,
-            ny2=phy_model.learnable_param_count2,
-            hiddeninv2=config['nn_model']['mlp_hidden_size'],
-            dr1=config['nn_model']['transformer_dropout'],
-            dr2=config['nn_model']['mlp_dropout'],
-            nhead=config['nn_model']['transformer_nhead'],
-            num_encoder_layers=config['nn_model']['transformer_encoder_layers'],
-            transformer_dim_fc=config['nn_model']['transformer_dim_fc'],
-            device=device,
-        )
-    elif name in ["HopeMlpV1", "HopeMlpV2"]:
-        model = cls.build_by_config(
-            config
-        )
-    else:
-        raise ValueError(f"Model {name} is not supported.")
-
+    model = cls.build_by_config(config["nn_model"], device)
     return model.to(device)

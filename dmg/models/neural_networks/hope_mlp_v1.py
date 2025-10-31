@@ -54,19 +54,17 @@ class HopeMlpV1(torch.nn.Module):
         )
 
     @classmethod
-    def build_by_config(cls, config):
+    def build_by_config(cls, config: dict, device: Optional[str] = "cpu"):
         return cls(
-            nx1=config["nn_model"]["nx1"],
-            ny1=config["nn_model"]["ny1"],
-            hiddeninv1=config["nn_model"]["hope_hidden_size"],
-            nx2=config["nn_model"]["nx2"],
-            ny2=config["nn_model"]["ny2"],
-            hiddeninv2=config["nn_model"]["mlp_hidden_size"],
-            dr1=config["nn_model"]["hope_dropout"],
-            dr2=config["nn_model"]["mlp_dropout"],
-            device=config["nn_model"]["device"],
+            nx1=config["nx1"],
+            nx2=config["nx2"],
+            ny=config["ny"],
+            hiddeninv1=config["lstm_hidden_size"],
+            hiddeninv2=config["fc_hidden_size"],
+            dr1=config["dr1"],
+            device=device,
         )
-
+        
     def forward(
         self,
         z1: torch.Tensor,

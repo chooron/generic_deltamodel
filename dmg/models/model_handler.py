@@ -293,7 +293,6 @@ class ModelHandler(torch.nn.Module):
             if self.target_name not in output.keys():
                 raise ValueError(f"Target variable '{self.target_name}' not in model outputs.")
             output = output[self.target_name]
-
             loss = loss_func(
                 output.squeeze(),
                 dataset_dict['target'].squeeze(),

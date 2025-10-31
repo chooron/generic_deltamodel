@@ -3,11 +3,15 @@ from typing import Any, Optional, Union
 import torch
 import torch.nn.functional as F
 from dmg.models.hydrodl2 import change_param_range, uh_conv, uh_gamma
+from dmg.models.neural_networks.layers.moe import MoeLayer
 
 
-class Hbv_2a(torch.nn.Module):
+class HbvMoeV1(torch.nn.Module):
     """HBV 2.0 ~.
-    # hbv_2 with attention input
+
+    HBV 模型夹带 Moe模块, 让他自动分配每个输出结果的权重值
+    其中HBV预测的参数都是静态参数,无需LSTM等模型预测动态参数
+
     Multi-component, multi-scale, differentiable PyTorch HBV model with rainfall
     runoff simulation on unit basins.
 
@@ -39,8 +43,7 @@ class Hbv_2a(torch.nn.Module):
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__()
-        self.name = "HBV 2aUH"
-        self.config = config
+        self.name = "HBV 2.0UH"
         self.initialize = False
         self.warm_up = 0
         self.pred_cutoff = 0
@@ -88,15 +91,21 @@ class Hbv_2a(torch.nn.Module):
                 "warm_up_states", self.warm_up_states
             )
             self.dy_drop = config.get("dy_drop", self.dy_drop)
-            self.dynamic_params = config["dynamic_params"].get(
-                self.__class__.__name__, self.dynamic_params
-            )
             self.variables = config.get("variables", self.variables)
             self.routing = config.get("routing", self.routing)
             self.comprout = config.get("comprout", self.comprout)
             self.nearzero = config.get("nearzero", self.nearzero)
             self.nmul = config.get("nmul", self.nmul)
+            
         self.set_parameters()
+        # 定义Moe模块
+        self.moe_layer = MoeLayer(
+            enc_in=5,
+            num_experts=self.nmul,
+            target_points=730,
+            embed_dim=64,
+            smoothing_k=11,
+        ).to(self.device)
 
     def set_parameters(self) -> None:
         """Get physical parameters."""
@@ -106,54 +115,45 @@ class Hbv_2a(torch.nn.Module):
         else:
             self.routing_param_names = []
 
-        self.learnable_param_count1 = len(self.dynamic_params) * self.nmul
-        self.learnable_param_count2 = (
-            len(self.phy_param_names) - len(self.dynamic_params)
+        self.learnable_param_count1 = 0
+        self.learnable_param_count2 = len(
+            self.phy_param_names
         ) * self.nmul + len(self.routing_param_names)
-        self.learnable_param_count = (
-            self.learnable_param_count1 + self.learnable_param_count2
-        )
+        self.learnable_param_count = self.learnable_param_count2
 
-    def descale_phy_dy_parameters(
+    def unpack_parameters(
         self,
-        phy_dy_params: torch.Tensor,
-        dy_list: list,
-    ) -> dict:
-        """Descale physical parameters.
+        parameters: torch.Tensor,
+    ) -> tuple[torch.Tensor, Union[torch.Tensor, None]]:
+        """Extract physical model and routing parameters from NN output.
 
         Parameters
         ----------
-        phy_params
-            Normalized physical parameters.
-        dy_list
-            List of dynamic parameters.
+        parameters
+            Unprocessed, learned parameters from a neural network.
 
         Returns
         -------
-        dict
-            Dictionary of descaled physical parameters.
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            Tuple of physical and routing parameters.
         """
-        n_steps = phy_dy_params.size(0)
-        n_grid = phy_dy_params.size(1)
+        phy_param_count = len(self.parameter_bounds)
 
-        # TODO: Fix; if dynamic parameters are not entered in config as they are
-        # in HBV params list, then descaling misamtch will occur.
-        param_dict = {}
-        pmat = torch.ones([1, n_grid, 1]) * self.dy_drop
-        for i, name in enumerate(dy_list):
-            staPar = (
-                phy_dy_params[-1, :, i, :].unsqueeze(0).repeat([n_steps, 1, 1])
-            )
+        # Physical static parameters
+        phy_static_params = parameters[
+            :, : phy_param_count * self.nmul
+        ].view(
+            parameters.shape[0],
+            phy_param_count,
+            self.nmul,
+        )
 
-            dynPar = phy_dy_params[:, :, i, :]
-            drmask = torch.bernoulli(pmat).detach_().to(self.device)
+        # Routing parameters
+        routing_params = None
+        if self.routing:
+            routing_params = parameters[:, phy_param_count * self.nmul :]
 
-            comPar = dynPar * (1 - drmask) + staPar * drmask
-            param_dict[name] = change_param_range(
-                param=comPar,
-                bounds=self.parameter_bounds[name],
-            )
-        return param_dict
+        return phy_static_params, routing_params
 
     def descale_phy_stat_parameters(
         self,
@@ -175,14 +175,13 @@ class Hbv_2a(torch.nn.Module):
         parameter_dict = {}
         for i, name in enumerate(stat_list):
             param = phy_stat_params[:, i, :]
-
             parameter_dict[name] = change_param_range(
                 param=param,
                 bounds=self.parameter_bounds[name],
             )
         return parameter_dict
 
-    def descale_rout_parameters(
+    def descale_route_parameters(
         self,
         routing_params: torch.Tensor,
     ) -> dict:
@@ -211,9 +210,7 @@ class Hbv_2a(torch.nn.Module):
     def forward(
         self,
         x_dict: dict[str, torch.Tensor],
-        parameters: tuple[
-            torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
-        ],
+        parameters: torch.Tensor,
     ) -> Union[tuple, dict[str, torch.Tensor]]:
         """Forward pass for HBV1.1p.
 
@@ -231,6 +228,7 @@ class Hbv_2a(torch.nn.Module):
         """
         # Unpack input data.
         x = x_dict["x_phy"]
+        self.muwts = x_dict.get("muwts", None)
 
         if self.warm_up_states:
             warm_up = self.warm_up
@@ -240,19 +238,10 @@ class Hbv_2a(torch.nn.Module):
             warm_up = 0
 
         # Unpack parameters.
-        phy_dy_params, phy_static_params, routing_params = (
-            parameters[0],
-            parameters[1],
-            parameters[2],
-        )
-
-        if len(parameters) == 4:
-            self.muwts = parameters[3]
-        else:
-            self.muwts = None
+        phy_static_params, routing_params = self.unpack_parameters(parameters)
 
         if self.routing:
-            self.routing_param_dict = self.descale_rout_parameters(
+            self.routing_param_dict = self.descale_route_parameters(
                 routing_params
             )
 
@@ -290,12 +279,7 @@ class Hbv_2a(torch.nn.Module):
             + 0.001
         )
 
-        phy_dy_params_dict = self.descale_phy_dy_parameters(
-            phy_dy_params,
-            dy_list=self.dynamic_params,
-        )
-
-        phy_static_params_dict = self.descale_phy_stat_parameters(
+        phy_params_dict = self.descale_phy_stat_parameters(
             phy_static_params,
             stat_list=[
                 param
@@ -308,15 +292,13 @@ class Hbv_2a(torch.nn.Module):
         return self.PBM(
             x,
             [SNOWPACK, MELTWATER, SM, SUZ, SLZ],
-            phy_dy_params_dict,
-            phy_static_params_dict,
+            phy_params_dict,
         )
 
     def PBM(
         self,
         forcing: torch.Tensor,
-        states: tuple,
-        phy_dy_params_dict: dict,
+        states: list[torch.Tensor],
         phy_static_params_dict: dict,
     ) -> Union[tuple, dict[str, torch.Tensor]]:
         """Run the HBV1.1p model forward.
@@ -392,15 +374,16 @@ class Hbv_2a(torch.nn.Module):
         capillary_sim = torch.zeros(
             Pm.size(), dtype=torch.float32, device=self.device
         )
+        SM_sim = torch.zeros(Pm.size(), dtype=torch.float32, device=self.device)
+        SUZ_sim = torch.zeros(
+            Pm.size(), dtype=torch.float32, device=self.device
+        )
+        SLZ_sim = torch.zeros(
+            Pm.size(), dtype=torch.float32, device=self.device
+        )
 
-        param_dict = {}
+        param_dict = phy_static_params_dict
         for t in range(n_steps):
-            # Get dynamic parameter values per timestep.
-            for key in phy_dy_params_dict.keys():
-                param_dict[key] = phy_dy_params_dict[key][t, :, :]
-            for key in phy_static_params_dict.keys():
-                param_dict[key] = phy_static_params_dict[key][:, :]
-
             # Separate precipitation into liquid and solid components.
             PRECIP = Pm[t, :, :]
             RAIN = torch.mul(
@@ -409,7 +392,6 @@ class Hbv_2a(torch.nn.Module):
             SNOW = torch.mul(
                 PRECIP, (Tm[t, :, :] < param_dict["parTT"]).type(torch.float32)
             )
-
             # Snow -------------------------------
             SNOWPACK = SNOWPACK + SNOW
             melt = param_dict["parCFMAX"] * (Tm[t, :, :] - param_dict["parTT"])
@@ -494,15 +476,16 @@ class Hbv_2a(torch.nn.Module):
             tosoil_sim[t, :, :] = tosoil
             PERC_sim[t, :, :] = PERC
 
-        # Get the overall average
-        # or weighted average using learned weights.
-        if torch.isnan(Qsimmu).any():
-            print("NaN detected in physical model output BEFORE weighting!")
+            SM_sim[t, :, :] = SM
+            SUZ_sim[t, :, :] = SUZ
+            SLZ_sim[t, :, :] = SLZ
 
-        if self.muwts is None:
-            Qsimavg = Qsimmu.mean(-1)
-        else:
-            Qsimavg = (Qsimmu * self.muwts).sum(-1)
+        # Moe layer
+        moe_input = torch.stack(
+            [SWE_sim, SM_sim, SUZ_sim, SLZ_sim, Qsimmu], dim=-1
+        )
+        output_weights = self.moe_layer(moe_input).squeeze()
+        Qsimavg = (Qsimmu * output_weights).sum(-1)
 
         # Run routing
         if self.routing:
@@ -591,14 +574,15 @@ class Hbv_2a(torch.nn.Module):
                 ),  # Evaporation factor
                 "tosoil": tosoil_sim.mean(-1, keepdim=True),  # Infiltration
                 "percolation": PERC_sim.mean(-1, keepdim=True),  # Percolation
+                "soilwater": SM_sim.mean(-1, keepdim=True),  # SM
                 "capillary": capillary_sim.mean(
                     -1, keepdim=True
                 ),  # Capillary rise
+                "moe_weight": output_weights.squeeze(),
                 # 'BFI': BFI_sim,  # Baseflow index
             }
 
             if not self.warm_up_states:
                 for key in out_dict.keys():
-                    if key != "BFI":
-                        out_dict[key] = out_dict[key][self.pred_cutoff :, :, :]
+                    out_dict[key] = out_dict[key][self.pred_cutoff:, :, :]
             return out_dict

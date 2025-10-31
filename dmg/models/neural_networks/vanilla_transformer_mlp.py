@@ -63,6 +63,23 @@ class VanillaTransformerMlpModel(torch.nn.Module):
         self.ann = AnnModel(
             nx=nx2, ny=ny2, hidden_size=hiddeninv2, dr=dr2,
         )
+        
+    @classmethod
+    def build_by_config(cls, config, device):
+        return cls(
+            nx1=config['nx1'],
+            ny1=config['ny1'],
+            hiddeninv1=config['transformer_d_model'],
+            nx2=config['nx2'],
+            ny2=config['ny2'],
+            hiddeninv2=config['mlp_hidden_size'],
+            dr1=config['transformer_dropout'],
+            dr2=config['mlp_dropout'],
+            nhead=config['transformer_nhead'],
+            num_encoder_layers=config['transformer_encoder_layers'],
+            transformer_dim_fc=config['transformer_dim_fc'],
+            device=device,
+        )
 
     def forward(
             self,

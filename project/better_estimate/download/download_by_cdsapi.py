@@ -12,12 +12,12 @@ dataset = "reanalysis-era5-land-monthly-means"
 base_request = {
     "product_type": ["monthly_averaged_reanalysis"],
     "variable": [
-        # "snow_depth_water_equivalent",
-        # "volumetric_soil_water_layer_1",
-        # "volumetric_soil_water_layer_2",
+        "snow_depth_water_equivalent",
+        "volumetric_soil_water_layer_1",
+        "volumetric_soil_water_layer_2",
         "volumetric_soil_water_layer_3",
-        # "volumetric_soil_water_layer_4",
-        # "total_evaporation"
+        "volumetric_soil_water_layer_4",
+        "total_evaporation"
     ],
     "month": [
         "01", "02", "03", "04", "05", "06",
@@ -33,11 +33,11 @@ base_request = {
 client = cdsapi.Client()
 
 # === 遍历 2000–2010 年 ===
-for year in range(2000, 2011):
+for year in range(1995, 2000):
     request = base_request.copy()
     request["year"] = [str(year)]
 
-    target_file = os.path.join(out_dir, f"era5land_monthly_swvl3_{year}.zip")
+    target_file = os.path.join(out_dir, f"era5land_monthly_{year}.zip")
     print(f"▶ 正在下载 {year} 年数据 -> {target_file}")
 
     client.retrieve(dataset, request).download(target_file)

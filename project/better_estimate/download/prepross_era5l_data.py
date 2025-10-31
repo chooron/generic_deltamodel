@@ -18,7 +18,7 @@ WATERSHED_ID_COLUMN = "gauge_id"
 SOIL_DEPTH_COLUMN = "soil_depth_statsgo" # 假设单位是米 (m)
 
 # 年份范围 (必须与你生成的 CSV 文件名匹配)
-YEAR_RANGE_STR = "2000-2010"
+YEAR_RANGE_STR = "1995-2010"
 
 # ERA5-Land 土壤层边界定义 (单位: mm)
 # (Top, Bottom)

@@ -120,28 +120,28 @@ class DplModel(torch.nn.Module):
             The output predictions.
         """
         # Neural network
-        if type(self.nn_model).__name__ in [
-            "LstmMlpModel",
-            "GruMlpModel",
-            "TcnMlpModel",
-            "TSMixerMlpModel",
-            "AttentionLstm",
-            "HopeMlpV1",
-            "HopeMlpV2",
-            "VanillaTransformerMlpModel",
-        ]:
-            parameters = self.nn_model(
-                data_dict["xc_nn_norm"], data_dict["c_nn_norm"]
-            )
-        elif type(self.nn_model).__name__.startswith("DualAttnLstmV"):
-            parameters = self.nn_model(
-                data_dict["x_nn_norm"], data_dict["c_nn_norm"]
-            )
-        elif type(self.nn_model).__name__ in ["MlpModel", "AnnModel"]:
-            parameters = self.nn_model(data_dict["c_nn_norm"])
-        else:
-            parameters = self.nn_model(data_dict["xc_nn_norm"])
-
+        # if type(self.nn_model).__name__ in [
+        #     "LstmMlpModel",
+        #     "GruMlpModel",
+        #     "TcnMlpModel",
+        #     "TSMixerMlpModel",
+        #     "AttentionLstm",
+        #     "HopeMlpV1",
+        #     "HopeMlpV2",
+        #     "VanillaTransformerMlpModel",
+        # ]:
+        #     parameters = self.nn_model(
+        #         data_dict["xc_nn_norm"], data_dict["c_nn_norm"]
+        #     )
+        # elif type(self.nn_model).__name__.startswith("DualAttnLstmV"):
+        #     parameters = self.nn_model(
+        #         data_dict["x_nn_norm"], data_dict["c_nn_norm"]
+        #     )
+        # elif type(self.nn_model).__name__ in ["MlpModel", "AnnModel"]:
+        #     parameters = self.nn_model(data_dict["c_nn_norm"])
+        # else:
+        #     parameters = self.nn_model(data_dict["xc_nn_norm"])
+        parameters = self.nn_model(data_dict)
         # Physics model
         predictions = self.phy_model(
             data_dict,

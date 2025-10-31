@@ -20,7 +20,7 @@ TARGET_CRS = "EPSG:4326"  # 假设所有 GRIB 文件的 CRS 都是 WGS84
 
 # --- 2. 定义循环参数 ---
 # 定义要处理的年份范围 (包含 2000 和 2010)
-YEARS_TO_PROCESS = range(2000, 2011) 
+YEARS_TO_PROCESS = range(1995, 2000) 
 # 定义要提取的变量列表
 VARIABLES_TO_PROCESS = ["swvl1", "swvl2", "swvl3", "swvl4", "sd", "e"]
 

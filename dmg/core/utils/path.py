@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class PathBuilder(BaseModel):
     """Build and initialize output directories for saving models and outputs.
-    
+
     Using Pydantic BaseModel to enforce type checking and validation.
     Scalable and flexible for diverse model configurations.
 
@@ -22,32 +22,37 @@ class PathBuilder(BaseModel):
     config
         Configuration dictionary with experiment and model settings.
     """
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    model_config['protected_namespaces'] = ()
 
-    config: dict[str, Any] = Field(..., description="Experiment configuration dictionary")
-    base_path: str = ''
-    dataset_name: str = ''
-    phy_model_inputs: str = ''
-    train_period: str = ''
-    test_period: str = ''
-    sim_period: str = ''
-    multimodel_state: str = ''
-    model_names: str = ''
-    dynamic_parameters: str = ''
-    dynamic_state: str = ''
-    loss_function: str = ''
-    hyperparameter_detail: str = ''
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config["protected_namespaces"] = ()
+
+    config: dict[str, Any] = Field(
+        ..., description="Experiment configuration dictionary"
+    )
+    base_path: str = ""
+    dataset_name: str = ""
+    phy_model_inputs: str = ""
+    train_period: str = ""
+    test_period: str = ""
+    sim_period: str = ""
+    multimodel_state: str = ""
+    model_names: str = ""
+    dynamic_parameters: str = ""
+    dynamic_state: str = ""
+    loss_function: str = ""
+    hyperparameter_detail: str = ""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config=config)
 
     def model_post_init(self, __context: Any) -> Any:
         """Post-initialization method to create output directories.
-        
+
         This method is called after the model is initialized.
         """
-        self.base_path = os.path.join(os.getenv("PROJ_PATH"), self.config['save_path'])
+        self.base_path = os.path.join(
+            os.getenv("PROJ_PATH"), self.config["save_path"]
+        )
 
         self.dataset_name = self._dataset_name(self.config)
         self.phy_model_inputs = self._phy_model_inputs(self.config)
@@ -59,7 +64,9 @@ class PathBuilder(BaseModel):
         self.multimodel_state = self._multimodel_state(self.config)
 
         self.model_names = self._model_names(self.config)
-        self.dynamic_parameters = self._dynamic_parameters(self.config, hash=False)
+        self.dynamic_parameters = self._dynamic_parameters(
+            self.config, hash=False
+        )
         self.dynamic_state = self._dynamic_state()
 
         self.loss_function = self._loss_function(self.config)
@@ -67,10 +74,10 @@ class PathBuilder(BaseModel):
 
         return super().model_post_init(__context)
 
-    @field_validator('config')
+    @field_validator("config")
     def validate_config(cls, value) -> dict[str, Any]:
         """Validate the configuration dictionary."""
-        required_keys = ['save_path', 'train', 'test', 'delta_model']
+        required_keys = ["save_path", "train", "test", "delta_model"]
         for key in required_keys:
             if key not in value:
                 raise ValueError(f"Missing required configuration key: {key}")
@@ -89,18 +96,20 @@ class PathBuilder(BaseModel):
             self.dynamic_state,
             # self.dynamic_parameters,
         )
-        if 'test_group_id' in self.config['test'].keys():
-            path_model = os.path.join(path_model, f"pub_basin_{self.config['test']['test_group_id']}")
+        if "test_group_id" in self.config["test"].keys():
+            path_model = os.path.join(
+                path_model, f"pub_basin_{self.config['test']['test_group_id']}"
+            )
         return path_model
 
     def build_path_out(self, model_path: str = None) -> dict[str, Any]:
         """Build path to model outputs from individual root paths.
-        
+
         Parameters
         ----------
         model_path : str
             Path to the model object.
-        
+
         Returns
         -------
         str
@@ -108,13 +117,13 @@ class PathBuilder(BaseModel):
         """
         if not model_path:
             model_path = self.build_path_model()
-        
-        if ('test' in self.config['mode']) or ('train' in self.config['mode']):
+
+        if ("test" in self.config["mode"]) or ("train" in self.config["mode"]):
             return os.path.join(
                 model_path,
                 self.test_period,
             )
-        elif self.config['mode'] == 'simulation':
+        elif self.config["mode"] == "simulation":
             return os.path.join(
                 model_path,
                 self.sim_period,
@@ -126,25 +135,25 @@ class PathBuilder(BaseModel):
         """Create directory where model and outputs will be saved.
 
         Creates all root directories to support the target directory.
-        
+
         Returns
         -------
         dict
             The original config with path modifications.
         """
         # Build paths
-        if os.path.exists(config.get('trained_model', '')):
+        if os.path.exists(config.get("trained_model", "")):
             # Set user-defined model path if it exists.
-            model_path = os.path.dirname(config['trained_model'])
+            model_path = os.path.dirname(config["trained_model"])
             out_path = self.build_path_out(model_path)
         else:
             # Check base path
-            self.validate_base_path(config['save_path'])
+            self.validate_base_path(config["save_path"])
             model_path = self.build_path_model()
             out_path = self.build_path_out(model_path)
 
         # Create dirs
-        if config['mode'] not in ['test', 'simulation']:
+        if config["mode"] not in ["test", "simulation"]:
             os.makedirs(model_path, exist_ok=True)
             os.makedirs(out_path, exist_ok=True)
         elif os.path.exists(model_path):
@@ -153,11 +162,11 @@ class PathBuilder(BaseModel):
             raise ValueError(f"No model to validate at path {model_path}")
 
         # Append the output paths to the config.
-        config['model_path'] = model_path
-        config['out_path'] = out_path
+        config["model_path"] = model_path
+        config["out_path"] = out_path
 
         # Save config
-        if config['mode'] in ['train', 'train_test']:
+        if config["mode"] in ["train", "train_test"]:
             serializable_config = self.make_json_serializable(config)
             self.save_config(model_path, serializable_config)
 
@@ -174,7 +183,7 @@ class PathBuilder(BaseModel):
             return [self.make_json_serializable(v) for v in obj]
         elif isinstance(obj, torch.dtype):  # Handle torch.dtype specifically
             return str(obj)  # Convert dtype to a string
-        elif hasattr(obj, '__dict__'):  # Handle objects with attributes
+        elif hasattr(obj, "__dict__"):  # Handle objects with attributes
             return self.make_json_serializable(vars(obj))
         else:
             return obj  # Return as is for natively serializable types
@@ -182,17 +191,17 @@ class PathBuilder(BaseModel):
     @staticmethod
     def save_config(path: str, config: dict[str, Any]) -> None:
         """Save the configuration metadata to the output directory.
-        
+
         Overwrite if it already exists.
         """
-        config_path = os.path.join(path, 'config.json')
-        with open(config_path, 'w') as f:
+        config_path = os.path.join(path, "config.json")
+        with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
 
     @staticmethod
     def validate_base_path(base_path: Any) -> Any:
         """Check that the base path exists. If not, attempt to create it.
-        
+
         Parameters
         ----------
         base_path : Any
@@ -204,7 +213,9 @@ class PathBuilder(BaseModel):
             try:
                 os.makedirs(base_path)
             except ValueError as e:
-                raise ValueError(f"Error creating base save path from config: {e}") from e
+                raise ValueError(
+                    f"Error creating base save path from config: {e}"
+                ) from e
 
     @staticmethod
     def _dataset_name(config: dict[str, Any]) -> str:
@@ -214,11 +225,11 @@ class PathBuilder(BaseModel):
     @staticmethod
     def _phy_model_inputs(config: dict[str, Any]) -> str:
         """Number of physical model input variables.
-        
+
         TODO: needs more thought (e.g. what is same count, different inputs?)
         ...maybe use hash.
         """
-        attributes = config['delta_model']['phy_model'].get('attributes', '')
+        attributes = config["delta_model"]["phy_model"].get("attributes", "")
         if attributes == []:
             attributes = 0
         return f"{config['delta_model']['phy_model']['forcings']}dy_{attributes}st_in"
@@ -229,8 +240,8 @@ class PathBuilder(BaseModel):
 
         Format is 'trainYYYY-YYYY' or 'trainYY-YY' if abbreviated.
         """
-        start = config['train']['start_time'][:4]
-        end = config['train']['end_time'][:4]
+        start = config["train"]["start_time"][:4]
+        end = config["train"]["end_time"][:4]
 
         if abbreviate:
             return f"train{start[-2:]}-{end[-2:]}"
@@ -243,14 +254,14 @@ class PathBuilder(BaseModel):
 
         Format is 'testYYYY-YYYY' or 'testYY-YY' if abbreviate.
         """
-        start = config['test']['start_time'][:4]
-        end = config['test']['end_time'][:4]
-        test_epoch = config['test'].get('test_epoch', '')
+        start = config["test"]["start_time"][:4]
+        end = config["test"]["end_time"][:4]
+        test_epoch = config["test"].get("test_epoch", "")
 
         if test_epoch:
             test_epoch = f"_Ep{test_epoch}"
         else:
-            test_epoch = ''
+            test_epoch = ""
 
         if abbreviate:
             return f"test{start[-2:]}-{end[-2:]}" + test_epoch
@@ -263,14 +274,14 @@ class PathBuilder(BaseModel):
 
         Format is 'testYYYY-YYYY' or 'testYY-YY' if abbreviate.
         """
-        start = config['simulation']['start_time'][:4]
-        end = config['simulation']['end_time'][:4]
-        test_epoch = config['test'].get('test_epoch', '')
+        start = config["simulation"]["start_time"][:4]
+        end = config["simulation"]["end_time"][:4]
+        test_epoch = config["test"].get("test_epoch", "")
 
         if test_epoch:
             test_epoch = f"_Ep{test_epoch}"
         else:
-            test_epoch = ''
+            test_epoch = ""
 
         if abbreviate:
             return f"sim{start[-2:]}-{end[-2:]}" + test_epoch
@@ -280,24 +291,24 @@ class PathBuilder(BaseModel):
     @staticmethod
     def _multimodel_state(config: dict[str, Any]) -> str:
         """Name multimodel state for an experiment."""
-        return config['multimodel_type'] or 'no_multi'
+        return config["multimodel_type"] or "no_multi"
 
     @staticmethod
     def _model_names(config: dict[str, Any]) -> str:
         """Names of the models used in an experiment.
-        
+
         Parameters
         ----------
         config
             Configuration dictionary.
         """
-        models = config['delta_model']['phy_model']['model']
-        return '_'.join(models)
+        models = config["delta_model"]["phy_model"]["model"]
+        return "_".join(models)
 
     @staticmethod
     def _dynamic_parameters(config: dict[str, Any], hash: bool = False) -> str:
         """Dynamic parameters used in the model(s).
-        
+
         Parameters
         ----------
         hash
@@ -311,15 +322,17 @@ class PathBuilder(BaseModel):
 
             'abc12345' if hash.
         """
-        models = config['delta_model']['phy_model']['model']
-        parameters = config['delta_model']['phy_model']['dynamic_params']
+        models = config["delta_model"]["phy_model"]["model"]
+        parameters = config["delta_model"]["phy_model"].get(
+            "dynamic_params", []
+        )
         if len(parameters) == 0:
-            return ''
-        param_str = '_'.join(
+            return ""
+        param_str = "_".join(
             param for model in models for param in parameters.get(model, [])
         )
         if not param_str:
-            return ''
+            return ""
 
         if hash:
             return hashlib.md5(param_str.encode()).hexdigest()[:8]
@@ -327,90 +340,71 @@ class PathBuilder(BaseModel):
 
     def _dynamic_state(self) -> str:
         """Identify if any physical model parameters are dynamic.
-        
+
         Parameters
         ----------
         dynamic_parameters
             String of dynamic parameters used in the model(s).
-        
+
         Returns
         -------
         str
             Flag; returns 'dyn' if dynamic parameters are used, else 'stat'.
         """
-        param_count = len(self.dynamic_parameters.split('_'))
-        if self.dynamic_parameters == '':
-            return 'stat'
+        param_count = len(self.dynamic_parameters.split("_"))
+        if self.dynamic_parameters == "":
+            return "stat"
         else:
             return f"{param_count}dyn"
 
     @staticmethod
     def _loss_function(config: dict[str, Any]) -> str:
         """Loss function(s) used in the model(s).
-    
+
         Parameters
         ----------
         config
             Configuration dictionary.
-        
+
         Returns
         -------
         str
             Loss function string.
         """
-        models = config['delta_model']['phy_model']['model']
-        loss_fn = config['loss_function']['model']
-        loss_fn_str = '_'.join(
-            loss_fn for model in models
-        )
+        models = config["delta_model"]["phy_model"]["model"]
+        loss_fn = config["loss_function"]["model"]
+        loss_fn_str = "_".join(loss_fn for model in models)
         return loss_fn_str
 
     @staticmethod
     def _hyperparameter_details(config: dict[str, Any]) -> str:
         """Details of hyperparameters used in the model(s).
-        
+
         Parameters
         ----------
         config
             Configuration dictionary.
-        
+
         Returns
         -------
         str
             Hyperparameter details string.
         """
-        norm = 'noLn'
-        norm_list = config['delta_model']['phy_model']['use_log_norm']
+        norm = "noLn"
+        norm_list = config["delta_model"]["phy_model"]["use_log_norm"]
         if norm_list:
-            vars = '_'.join(norm_list)
+            vars = "_".join(norm_list)
             norm = f"Ln_{vars}"
 
-        warmup = 'noWU'
-        if config['delta_model']['phy_model']['warm_up_states']:
-            warmup = 'WU'
-
-        # Set hiddensize for single or multi-NN setups.
-        if config['delta_model']['nn_model']['model'] in ['LstmMlpModel', 'GruMlpModel', 'TcnMlpModel', 'TSMixerMlpModel']:
-            hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
-                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
-        elif config['delta_model']['nn_model']['model'].startswith('DualAttnLstmV'):
-            hidden_size = f"{config['delta_model']['nn_model']['lstm_hidden_size']}" \
-                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
-        elif config['delta_model']['nn_model']['model'].startswith('HopeMlp'):
-            hidden_size = f"{config['delta_model']['nn_model']['hope_hidden_size']}" \
-                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
-        elif config['delta_model']['nn_model']['model'] in ["VanillaTransformerMlpModel"]:
-            hidden_size = f"{config['delta_model']['nn_model']['transformer_d_model']}" \
-                            f"_{config['delta_model']['nn_model']['mlp_hidden_size']}"
-        else:
-            hidden_size = config['delta_model']['nn_model']['hidden_size']
+        warmup = "noWU"
+        if config["delta_model"]["phy_model"]["warm_up_states"]:
+            warmup = "WU"
 
         return (
             f"{config['delta_model']['nn_model']['model']}_"
             f"E{config['train']['epochs']}_"
             f"R{config['delta_model']['rho']}_"
             f"B{config['train']['batch_size']}_"
-            f"H{hidden_size}_"
             f"n{config['delta_model']['phy_model']['nmul']}_"
             f"{norm}_"
             f"{warmup}_"
