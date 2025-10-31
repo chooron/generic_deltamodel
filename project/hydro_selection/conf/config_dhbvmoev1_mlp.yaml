@@ -70,12 +70,7 @@ delta_model:
     rho: 365
     
     phy_model:
-        ## Citations ##
-        # HBV 1.1p: Yalan Song, Kamlesh Sawadekar, Jonathan Frame, et al.
-        # "Physics-informed, Differentiable Hydrologic  Models for Capturing
-        # Unseen Extreme Events." ESS Open Archive (2025).
-        # https://doi.org/10.22541/essoar.172304428.82707157/v2.
-
+        directory: project\hydro_selection\models
         model: [HbvMoeV1]
         nmul: 16
         warm_up: 365

@@ -3,8 +3,8 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
-from dmg.models.neural_networks.ann import AnnModel
-from dmg.models.neural_networks.hope import Hope
+from dmg.models.neural_networks.layers.ann import AnnModel
+from dmg.models.neural_networks.layers.hope import Hope
 
 
 class HopeMlpV1(torch.nn.Module):
@@ -56,7 +56,7 @@ class HopeMlpV1(torch.nn.Module):
     @classmethod
     def build_by_config(cls, config: dict, device: Optional[str] = "cpu"):
         return cls(
-            nx1=config["nx1"],
+            nx1=config["nx"],
             nx2=config["nx2"],
             ny=config["ny"],
             hiddeninv1=config["lstm_hidden_size"],
@@ -67,23 +67,10 @@ class HopeMlpV1(torch.nn.Module):
         
     def forward(
         self,
-        z1: torch.Tensor,
-        z2: torch.Tensor,
+        data_dict:dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass.
-
-        Parameters
-        ----------
-        z1
-            The LSTM input tensor.
-        z2
-            The MLP input tensor.
-
-        Returns
-        -------
-        tuple
-            The LSTM and MLP output tensors.
-        """
+        z1 = data_dict['xc_nn_norm']
+        z2 = data_dict['c_nn_norm']
         hope_out = self.hope_layer(
             torch.permute(z1, (1, 0, 2))
         )  # dim: timesteps, gages, params

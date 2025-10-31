@@ -95,16 +95,18 @@ def load_component(
     )
 
 
-def import_phy_model(model: str, ver_name: str = None) -> type:
+def import_phy_model(model:str, config: dict) -> type:
     """Loads a physical model, either from HydroDL2 (hydrology) or locally."""
-    # try:
-    #     from hydrodl2 import load_model as load_from_hydrodl
-    #     return load_from_hydrodl(model, ver_name)
-    # except ImportError:
-    #     log.warning("Package 'HydroDL2' not loaded. Continuing without it.")
+    if "directory" in config["phy_model"].keys():
+        tmp_phy_model_dir = os.path.join(
+            os.getenv("PROJ_PATH"), config["phy_model"]["directory"]
+        )
+    else:
+        tmp_phy_model_dir = phy_model_dir
+        
     return load_component(
         model,  # Pass model as name directly
-        phy_model_dir,
+        tmp_phy_model_dir,
         torch.nn.Module,
     )
 

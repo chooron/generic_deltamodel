@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_tcn import TCN
 
-from dmg.models.neural_networks.ann import AnnModel
+from dmg.models.neural_networks.layers.ann import AnnModel
 
 
 class TcnMlpModel(torch.nn.Module):
@@ -84,7 +84,7 @@ class TcnMlpModel(torch.nn.Module):
     @classmethod
     def build_by_config(cls, config, device):
         return cls(
-            nx1=config['nx1'],
+            nx1=config['nx'],
             ny1=config['ny1'],
             hiddeninv1=config["tcn_hidden_size"],
             nx2=config['nx2'],
@@ -97,23 +97,10 @@ class TcnMlpModel(torch.nn.Module):
 
     def forward(
         self,
-        z1: torch.Tensor,
-        z2: torch.Tensor,
+        data_dict:dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass.
-
-        Parameters
-        ----------
-        z1
-            The LSTM input tensor.
-        z2
-            The MLP input tensor.
-
-        Returns
-        -------
-        tuple
-            The LSTM and MLP output tensors.
-        """
+        z1 = data_dict['xc_nn_norm']
+        z2 = data_dict['c_nn_norm']
         tcn_out = self.tcninv(
             z1.permute(1, 0, 2)
         )  # dim: timesteps, gages, params

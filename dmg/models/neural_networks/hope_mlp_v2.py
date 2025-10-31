@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dmg.models.neural_networks.ann import AnnModel
-from dmg.models.neural_networks.hope import Hope
+from dmg.models.neural_networks.layers.ann import AnnModel
+from dmg.models.neural_networks.layers.hope import Hope
 
 class GaussianSmoother(nn.Module):
     def __init__(self, channels, kernel_size=9, sigma=2.0):

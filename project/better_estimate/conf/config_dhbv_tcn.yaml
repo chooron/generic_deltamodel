@@ -98,8 +98,8 @@ delta_model:
     nn_model:
         model: TcnMlpModel
         mlp_dropout: 0.5
-        lstm_dropout: 0.5
-        lstm_hidden_size: 64
+        tcn_dropout: 0.5
+        tcn_hidden_size: 64
         mlp_hidden_size: 256
         learning_rate: 1.0
         lr_scheduler: None

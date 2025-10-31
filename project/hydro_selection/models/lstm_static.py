@@ -4,9 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dmg.models.neural_networks.ann import AnnModel
-
-
 class LstmStaticModel(torch.nn.Module):
     """LSTM-MLP model for multi-scale learning.
 

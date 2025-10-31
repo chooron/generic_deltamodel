@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dmg.models.neural_networks.ann import AnnModel
-from dmg.models.neural_networks.vanilla_transformer import VanillaTransformer
+from dmg.models.neural_networks.layers.ann import AnnModel
+from dmg.models.neural_networks.layers.vanilla_transformer import VanillaTransformer
 
 
 class VanillaTransformerMlpModel(torch.nn.Module):
@@ -67,7 +67,7 @@ class VanillaTransformerMlpModel(torch.nn.Module):
     @classmethod
     def build_by_config(cls, config, device):
         return cls(
-            nx1=config['nx1'],
+            nx1=config['nx'],
             ny1=config['ny1'],
             hiddeninv1=config['transformer_d_model'],
             nx2=config['nx2'],
@@ -82,24 +82,11 @@ class VanillaTransformerMlpModel(torch.nn.Module):
         )
 
     def forward(
-            self,
-            z1: torch.Tensor,
-            z2: torch.Tensor,
+        self,
+        data_dict:dict,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass.
-
-        Parameters
-        ----------
-        z1
-            The LSTM input tensor.
-        z2
-            The MLP input tensor.
-        
-        Returns
-        -------
-        tuple
-            The LSTM and MLP output tensors.
-        """
+        z1 = data_dict['xc_nn_norm']
+        z2 = data_dict['c_nn_norm']
         z1_permute = torch.permute(z1, (1, 0, 2))
         transfomer_out = self.transfomerinv(z1_permute).permute(1, 0, 2)
         ann_out = self.ann(z2)
